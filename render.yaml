@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: motorxlive-api
+    runtime: docker
+    plan: standard
+    region: oregon
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    rootDir: api
+    preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RUN_MIGRATIONS
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: motorxlive-db
+          property: connectionString
+      - key: MOTORXLIVE_MASTER_KEY
+        sync: false
+      - key: MUX_TOKEN_ID
+        sync: false
+      - key: MUX_TOKEN_SECRET
+        sync: false
+      - key: MUX_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: motorxlive-db
+    databaseName: motorxlive
+    user: motorxlive
+    plan: pro-8gb
+    region: oregon
+    highAvailability:
+      enabled: true

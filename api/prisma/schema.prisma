@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id    String @id @default(cuid())
+  email String? @unique
+  name  String?
+  role  String @default("STREAMER")
+  videosSubmitted Video[] @relation("VideoSubmittedBy")
+}
+
+model Category {
+  id        String @id @default(cuid())
+  name      String
+  slug      String @unique
+  sortOrder Int    @default(0)
+  events    Event[]
+}
+
+model Event {
+  id           String   @id @default(cuid())
+  title        String
+  slug         String   @unique
+  startAt      DateTime?
+  endAt        DateTime?
+  heroImageUrl String? // flyer URL
+
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+
+  videos       Video[]
+}
+
+enum VideoSourceType {
+  MANAGED_VOD
+  EXTERNAL_HLS
+  YOUTUBE
+}
+
+enum VideoStatus {
+  PROCESSING
+  READY
+  FAILED
+  DISABLED
+}
+
+model Video {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  submittedByUserId String?
+  submittedBy       User?    @relation("VideoSubmittedBy", fields: [submittedByUserId], references: [id])
+  needsReview       Boolean  @default(true)
+
+  sourceType VideoSourceType
+  provider   String   @default("custom")
+  title      String
+  description String?
+
+  playbackHlsUrl  String?
+  playbackDashUrl String?
+  youtubeVideoId  String?
+
+  durationSeconds Int?
+  status          VideoStatus @default(PROCESSING)
+  publishedAt     DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventId, publishedAt])
+  @@index([status, publishedAt])
+  @@index([needsReview, createdAt])
+}

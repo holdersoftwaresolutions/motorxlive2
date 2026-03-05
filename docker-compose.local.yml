@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: motorxlive
+      POSTGRES_PASSWORD: motorxlive
+      POSTGRES_DB: motorxlive
+    ports:
+      - "54320:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motorxlive"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 10000
+      RUN_MIGRATIONS: "true"
+      DATABASE_URL: postgresql://motorxlive:motorxlive@db:5432/motorxlive?sslmode=disable
+      MOTORXLIVE_MASTER_KEY: REPLACE_WITH_BASE64_32_BYTES
+    ports:
+      - "10000:10000"
+    depends_on:
+      db:
+        condition: service_healthy
