@@ -1,6 +1,6 @@
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
-import bodyParser from "body-parser";
+import * as express from "express";
 import { AppModule } from "./app.module";
 
 function ensureSslModeRequire(url: string): string {
@@ -16,13 +16,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
-  app.use(
-    bodyParser.json({
-      verify: (req: any, _res, buf) => {
-        req.rawBody = buf.toString("utf8");
-      },
-    })
-  );
+app.use(
+  express.json({
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString("utf8");
+    },
+  })
+);
 
   app.useGlobalPipes(
     new ValidationPipe({

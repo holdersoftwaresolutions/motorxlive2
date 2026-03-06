@@ -16,23 +16,25 @@ model User {
 }
 
 model Category {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String @unique
-  sortOrder Int    @default(0)
+  slug      String   @unique
+  sortOrder Int      @default(0)
+
   events    Event[]
 }
 
 model Event {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   title        String
-  slug         String   @unique
+  slug         String    @unique
+  description  String?
   startAt      DateTime?
   endAt        DateTime?
-  heroImageUrl String? // flyer URL
+  heroImageUrl String?   // flyer URL
 
   categoryId   String?
-  category     Category? @relation(fields: [categoryId], references: [id])
+  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   videos       Video[]
 }
