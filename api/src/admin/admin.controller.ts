@@ -115,6 +115,68 @@ export class AdminController {
   // Streams
   // -----------------------------
 
+    @Get("streams/review-queue")
+  async listStreamsForReview() {
+    return this.prisma.stream.findMany({
+      where: {
+        needsReview: true,
+      },
+      orderBy: [{ createdAt: "asc" }],
+      include: {
+        event: {
+          include: {
+            category: true,
+          },
+        },
+        submittedBy: true,
+      },
+    });
+  }
+
+  @Post("streams/:id/approve")
+  async approveStream(@Param("id") id: string) {
+    const existing = await this.prisma.stream.findUnique({
+      where: { id },
+      select: { id: true, needsReview: true },
+    });
+
+    if (!existing) {
+      return { ok: false, error: "Stream not found" };
+    }
+
+    const updated = await this.prisma.stream.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        lifecycle: "READY",
+      },
+    });
+
+    return { ok: true, stream: updated };
+  }
+
+  @Post("streams/:id/reject")
+  async rejectStream(@Param("id") id: string) {
+    const existing = await this.prisma.stream.findUnique({
+      where: { id },
+      select: { id: true, needsReview: true },
+    });
+
+    if (!existing) {
+      return { ok: false, error: "Stream not found" };
+    }
+
+    const updated = await this.prisma.stream.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        lifecycle: "DISABLED",
+      },
+    });
+
+    return { ok: true, stream: updated };
+  }
+  
   @Get("events/:id/streams")
   async listEventStreams(@Param("id") eventId: string) {
     return this.prisma.stream.findMany({

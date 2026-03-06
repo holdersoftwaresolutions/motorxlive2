@@ -19,6 +19,10 @@ export class PublicLiveController {
       category: categorySlug ? { slug: categorySlug } : undefined,
       streams: {
         some: {
+          needsReview: false,
+          lifecycle: {
+            in: ["READY", "LIVE"],
+          },
           OR: [
             { youtubeVideoId: { not: null } },
             { playbackHlsUrl: { not: null } },
@@ -48,6 +52,12 @@ export class PublicLiveController {
             },
           },
           streams: {
+            where: {
+              needsReview: false,
+              lifecycle: {
+                in: ["READY", "LIVE"],
+              },
+            },
             orderBy: [{ isPrimary: "desc" }, { priority: "asc" }],
           },
         },
