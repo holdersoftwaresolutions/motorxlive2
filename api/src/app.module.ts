@@ -4,7 +4,9 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { PublicVideosController } from "./public/public-videos.controller";
 import { PublicCategoriesController } from "./public/public-categories.controller";
 import { PublicEventsController } from "./public/public-events.controller";
+import { PublicLiveController } from "./public/public-live.controller";
 import { AdminController } from "./admin/admin.controller";
+import { StreamerController } from "./streamer/streamer.controller";
 
 @Module({
   imports: [PrismaModule],
@@ -13,7 +15,9 @@ import { AdminController } from "./admin/admin.controller";
     PublicVideosController,
     PublicCategoriesController,
     PublicEventsController,
+    PublicLiveController,
     AdminController,
+    StreamerController,
   ],
 })
 export class AppModule {}

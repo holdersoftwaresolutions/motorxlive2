@@ -13,6 +13,7 @@ model User {
   name  String?
   role  String @default("STREAMER")
   videosSubmitted Video[] @relation("VideoSubmittedBy")
+  streamsSubmitted Stream[] @relation("StreamSubmittedBy")
 }
 
 model Category {
@@ -42,25 +43,29 @@ model Event {
 }
 
 model Stream {
-  id             String                @id @default(cuid())
-  eventId        String
-  event          Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id               String                @id @default(cuid())
+  eventId          String
+  event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  sourceType     StreamSourceType
-  provider       String                @default("custom")
+  submittedByUserId String?
+  submittedBy       User?                @relation("StreamSubmittedBy", fields: [submittedByUserId], references: [id])
+  needsReview       Boolean              @default(true)
 
-  title          String?
-  isPrimary      Boolean               @default(false)
-  priority       Int                   @default(0)
+  sourceType       StreamSourceType
+  provider         String                @default("custom")
 
-  playbackHlsUrl String?
-  playbackDashUrl String?
-  youtubeVideoId String?
+  title            String?
+  isPrimary        Boolean               @default(false)
+  priority         Int                   @default(0)
 
-  lifecycle      StreamLifecycleStatus @default(CREATED)
+  playbackHlsUrl   String?
+  playbackDashUrl  String?
+  youtubeVideoId   String?
 
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  lifecycle        StreamLifecycleStatus @default(CREATED)
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   @@index([eventId, priority])
 }
