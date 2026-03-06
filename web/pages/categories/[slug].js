@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import EventCard from "../components/EventCard";
+import EventCard from "../../components/EventCard";
 
-export default function HomePage() {
+export default function CategoryPage({ slug }) {
   const [categories, setCategories] = useState([]);
   const [eventsData, setEventsData] = useState({ items: [] });
   const [loading, setLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function HomePage() {
 
         const [categoriesRes, eventsRes] = await Promise.all([
           fetch("/api/public/categories"),
-          fetch("/api/public/events?page=1&pageSize=12"),
+          fetch(`/api/public/events?category=${slug}&page=1&pageSize=24`),
         ]);
 
         const [categoriesJson, eventsJson] = await Promise.all([
@@ -33,7 +33,7 @@ export default function HomePage() {
         setEventsData(eventsJson || { items: [] });
       } catch (err) {
         if (!mounted) return;
-        setError("Failed to load homepage content.");
+        setError("Failed to load category page.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -44,64 +44,47 @@ export default function HomePage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [slug]);
+
+  const currentCategory = useMemo(() => {
+    return categories.find((c) => c.slug === slug) || null;
+  }, [categories, slug]);
 
   return (
     <>
       <Head>
-        <title>MotorXLive</title>
+        <title>{currentCategory?.name || slug} | MotorXLive</title>
         <meta
           name="description"
-          content="Watch motorsports events live and browse completed event videos."
+          content={`Browse events in ${currentCategory?.name || slug}.`}
         />
       </Head>
 
       <div style={styles.page}>
         <div style={styles.container}>
+          <div style={styles.topBar}>
+            <Link href="/" style={styles.backLink}>
+              ← Back to Home
+            </Link>
+          </div>
+
           <section style={styles.hero}>
-            <p style={styles.eyebrow}>MotorXLive</p>
-            <h1 style={styles.heroTitle}>Live motorsports events and event replays.</h1>
+            <p style={styles.eyebrow}>Category</p>
+            <h1 style={styles.heroTitle}>
+              {currentCategory?.name || slug}
+            </h1>
             <p style={styles.heroSubtitle}>
-              Browse by category, jump into live event pages, and watch completed videos after the event ends.
+              Browse all events currently available in this category.
             </p>
           </section>
 
           <section style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>Browse Categories</h2>
-            </div>
-
-            {loading ? (
-              <p style={styles.mutedText}>Loading categories...</p>
-            ) : categories.length === 0 ? (
-              <p style={styles.mutedText}>No categories available yet.</p>
-            ) : (
-              <div style={styles.categoryGrid}>
-                {categories.map((category) => (
-                  <Link
-                    key={category.id}
-                    href={`/categories/${category.slug}`}
-                    style={styles.categoryCard}
-                  >
-                    <div style={styles.categoryName}>{category.name}</div>
-                    <div style={styles.categoryMeta}>View events</div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>Upcoming & Featured Events</h2>
-            </div>
-
             {loading ? (
               <p style={styles.mutedText}>Loading events...</p>
             ) : error ? (
               <p style={styles.errorText}>{error}</p>
             ) : !eventsData?.items?.length ? (
-              <p style={styles.mutedText}>No events available yet.</p>
+              <p style={styles.mutedText}>No events available in this category yet.</p>
             ) : (
               <div style={styles.eventGrid}>
                 {eventsData.items.map((event) => (
@@ -116,6 +99,14 @@ export default function HomePage() {
   );
 }
 
+export async function getServerSideProps(context) {
+  return {
+    props: {
+      slug: context.params.slug,
+    },
+  };
+}
+
 const styles = {
   page: {
     minHeight: "100vh",
@@ -128,8 +119,16 @@ const styles = {
     margin: "0 auto",
     padding: "32px 20px 60px",
   },
+  topBar: {
+    marginBottom: 20,
+  },
+  backLink: {
+    color: "#8fb3ff",
+    textDecoration: "none",
+    fontSize: 14,
+  },
   hero: {
-    padding: "16px 0 24px",
+    marginBottom: 28,
   },
   eyebrow: {
     fontSize: 14,
@@ -139,50 +138,18 @@ const styles = {
     marginBottom: 10,
   },
   heroTitle: {
-    fontSize: 42,
+    fontSize: 40,
     lineHeight: 1.1,
     margin: "0 0 12px",
   },
   heroSubtitle: {
-    maxWidth: 760,
-    fontSize: 17,
+    fontSize: 16,
     lineHeight: 1.6,
     color: "#c9d1d9",
     margin: 0,
   },
   section: {
-    marginTop: 36,
-  },
-  sectionHeader: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    margin: 0,
-  },
-  categoryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-  },
-  categoryCard: {
-    textDecoration: "none",
-    color: "#f5f7fa",
-    border: "1px solid #1f2937",
-    background: "#11161c",
-    borderRadius: 14,
-    padding: 18,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-  categoryName: {
-    fontSize: 18,
-    fontWeight: 700,
-  },
-  categoryMeta: {
-    fontSize: 14,
-    color: "#9aa4af",
+    marginTop: 24,
   },
   eventGrid: {
     display: "grid",
