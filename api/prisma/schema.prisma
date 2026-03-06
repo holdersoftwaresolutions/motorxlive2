@@ -37,6 +37,32 @@ model Event {
   category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   videos       Video[]
+
+  streams Stream[]
+}
+
+model Stream {
+  id             String                @id @default(cuid())
+  eventId        String
+  event          Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  sourceType     StreamSourceType
+  provider       String                @default("custom")
+
+  title          String?
+  isPrimary      Boolean               @default(false)
+  priority       Int                   @default(0)
+
+  playbackHlsUrl String?
+  playbackDashUrl String?
+  youtubeVideoId String?
+
+  lifecycle      StreamLifecycleStatus @default(CREATED)
+
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([eventId, priority])
 }
 
 enum VideoSourceType {
@@ -50,6 +76,21 @@ enum VideoStatus {
   READY
   FAILED
   DISABLED
+}
+
+enum StreamSourceType {
+  MANAGED_LIVE
+  EXTERNAL_HLS
+  YOUTUBE
+}
+
+enum StreamLifecycleStatus {
+  CREATED
+  READY
+  LIVE
+  ENDED
+  DISABLED
+  ERROR
 }
 
 model Video {

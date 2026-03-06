@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
+import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateCategoryDto,
@@ -106,6 +107,98 @@ export class AdminController {
       },
       include: {
         category: true,
+      },
+    });
+  }
+
+    // -----------------------------
+  // Streams
+  // -----------------------------
+
+  @Get("events/:id/streams")
+  async listEventStreams(@Param("id") eventId: string) {
+    return this.prisma.stream.findMany({
+      where: { eventId },
+      orderBy: [{ isPrimary: "desc" }, { priority: "asc" }, { createdAt: "asc" }],
+    });
+  }
+
+  @Post("events/:id/streams")
+  async createStream(
+    @Param("id") eventId: string,
+    @Body() dto: CreateStreamDto
+  ) {
+    if (
+      dto.sourceType === "YOUTUBE" &&
+      !dto.youtubeVideoId
+    ) {
+      return { ok: false, error: "youtubeVideoId is required for YOUTUBE streams" };
+    }
+
+    if (
+      dto.sourceType === "EXTERNAL_HLS" &&
+      !dto.playbackHlsUrl &&
+      !dto.playbackDashUrl
+    ) {
+      return { ok: false, error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS streams" };
+    }
+
+    if (dto.isPrimary) {
+      await this.prisma.stream.updateMany({
+        where: { eventId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    return this.prisma.stream.create({
+      data: {
+        eventId,
+        sourceType: dto.sourceType as any,
+        provider: dto.provider ?? "custom",
+        title: dto.title,
+        isPrimary: dto.isPrimary ?? false,
+        priority: dto.priority ?? 0,
+        playbackHlsUrl: dto.playbackHlsUrl,
+        playbackDashUrl: dto.playbackDashUrl,
+        youtubeVideoId: dto.youtubeVideoId,
+        lifecycle: (dto.lifecycle as any) ?? "CREATED",
+      },
+    });
+  }
+
+  @Patch("streams/:id")
+  async updateStream(
+    @Param("id") id: string,
+    @Body() dto: UpdateStreamDto
+  ) {
+    const existing = await this.prisma.stream.findUnique({
+      where: { id },
+      select: { id: true, eventId: true },
+    });
+
+    if (!existing) {
+      return { ok: false, error: "Stream not found" };
+    }
+
+    if (dto.isPrimary) {
+      await this.prisma.stream.updateMany({
+        where: { eventId: existing.eventId, isPrimary: true },
+        data: { isPrimary: false },
+      });
+    }
+
+    return this.prisma.stream.update({
+      where: { id },
+      data: {
+        ...(dto.sourceType !== undefined ? { sourceType: dto.sourceType as any } : {}),
+        ...(dto.provider !== undefined ? { provider: dto.provider } : {}),
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
+        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
+        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        ...(dto.lifecycle !== undefined ? { lifecycle: dto.lifecycle as any } : {}),
       },
     });
   }
