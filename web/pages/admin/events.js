@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
+import { uploadFlyer } from "../../lib/uploadFlyer";
 
 export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);
   const [message, setMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [flyerFile, setFlyerFile] = useState(null);
+
   const [form, setForm] = useState({
     title: "",
     slug: "",
@@ -16,13 +20,13 @@ export default function AdminEventsPage() {
     categoryId: "",
   });
 
-      async function loadAll() {
+  async function loadAll() {
     try {
       setMessage("");
 
       const [categoriesRes, eventsRes] = await Promise.all([
-        fetch("/api/admin/categories"),
-        fetch("/api/admin/events"),
+        adminFetch("/api/admin/categories"),
+        adminFetch("/api/admin/events"),
       ]);
 
       const categoriesText = await categoriesRes.text();
@@ -52,6 +56,31 @@ export default function AdminEventsPage() {
     loadAll();
   }, []);
 
+  async function handleUploadFlyer() {
+    try {
+      if (!flyerFile) {
+        setMessage("Choose a flyer image first.");
+        return;
+      }
+
+      setUploading(true);
+      setMessage("");
+
+      const publicUrl = await uploadFlyer(flyerFile);
+
+      setForm((s) => ({
+        ...s,
+        heroImageUrl: publicUrl,
+      }));
+
+      setMessage("Flyer uploaded successfully.");
+    } catch (err) {
+      setMessage(err.message || "Failed to upload flyer.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     setMessage("");
@@ -68,8 +97,10 @@ export default function AdminEventsPage() {
       }),
     });
 
+    const text = await res.text();
+
     if (!res.ok) {
-      setMessage("Failed to create event.");
+      setMessage(`Failed to create event: ${text}`);
       return;
     }
 
@@ -83,6 +114,7 @@ export default function AdminEventsPage() {
       heroImageUrl: "",
       categoryId: "",
     });
+    setFlyerFile(null);
     loadAll();
   }
 
@@ -93,8 +125,10 @@ export default function AdminEventsPage() {
       body: JSON.stringify(patch),
     });
 
+    const text = await res.text();
+
     if (!res.ok) {
-      setMessage("Failed to update event.");
+      setMessage(`Failed to update event: ${text}`);
       return;
     }
 
@@ -114,7 +148,6 @@ export default function AdminEventsPage() {
             <textarea style={styles.textarea} placeholder="Description" value={form.description} onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} />
             <input style={styles.input} type="datetime-local" value={form.startAt} onChange={(e) => setForm((s) => ({ ...s, startAt: e.target.value }))} />
             <input style={styles.input} type="datetime-local" value={form.endAt} onChange={(e) => setForm((s) => ({ ...s, endAt: e.target.value }))} />
-            <input style={styles.input} placeholder="Flyer URL" value={form.heroImageUrl} onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))} />
 
             <select
               style={styles.input}
@@ -128,6 +161,29 @@ export default function AdminEventsPage() {
                 </option>
               ))}
             </select>
+
+            <input
+              style={styles.input}
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFlyerFile(e.target.files?.[0] || null)}
+            />
+
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={handleUploadFlyer}
+              disabled={uploading}
+            >
+              {uploading ? "Uploading..." : "Upload Flyer"}
+            </button>
+
+            <input
+              style={styles.input}
+              placeholder="Flyer URL"
+              value={form.heroImageUrl}
+              onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
+            />
 
             <button type="submit" style={styles.button}>Create Event</button>
           </form>
@@ -258,6 +314,7 @@ const styles = {
   message: {
     marginTop: 12,
     color: "#8fd19e",
+    whiteSpace: "pre-wrap",
   },
   mutedText: {
     color: "#9aa4af",
