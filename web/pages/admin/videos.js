@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
+import { adminFetch } from "../../lib/adminFetch";
 
 export default function AdminVideosPage() {
   const [events, setEvents] = useState([]);
@@ -20,7 +21,7 @@ export default function AdminVideosPage() {
   });
 
   async function loadEvents() {
-    const res = await fetch("/api/admin/events");
+    const res = await adminFetch("/api/admin/events");
     const json = await res.json();
     const list = Array.isArray(json) ? json : [];
     setEvents(list);
@@ -36,7 +37,7 @@ export default function AdminVideosPage() {
       return;
     }
 
-    const res = await fetch(`/api/admin/events/${eventId}/videos`);
+    const res = await adminfetch(`/api/admin/events/${eventId}/videos`);
     const json = await res.json();
     setVideos(Array.isArray(json) ? json : []);
   }
@@ -58,7 +59,7 @@ export default function AdminVideosPage() {
       return;
     }
 
-    const res = await fetch(`/api/admin/events/${selectedEventId}/videos`, {
+    const res = await adminFetch(`/api/admin/events/${selectedEventId}/videos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -90,7 +91,7 @@ export default function AdminVideosPage() {
   }
 
   async function updateVideo(id, patch) {
-    const res = await fetch(`/api/admin/videos/${id}`, {
+    const res = await adminFetch(`/api/admin/videos/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),

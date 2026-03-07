@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
+import { adminFetch } from "../../lib/adminFetch";
 
 export default function AdminStreamsPage() {
   const [events, setEvents] = useState([]);
@@ -19,7 +20,7 @@ export default function AdminStreamsPage() {
   });
 
   async function loadEvents() {
-    const res = await fetch("/api/admin/events");
+    const res = await adminFetch("/api/admin/events");
     const json = await res.json();
     const list = Array.isArray(json) ? json : [];
     setEvents(list);
@@ -35,7 +36,7 @@ export default function AdminStreamsPage() {
       return;
     }
 
-    const res = await fetch(`/api/admin/events/${eventId}/streams`);
+    const res = await adminFetch(`/api/admin/events/${eventId}/streams`);
     const json = await res.json();
     setStreams(Array.isArray(json) ? json : []);
   }
@@ -57,7 +58,7 @@ export default function AdminStreamsPage() {
       return;
     }
 
-    const res = await fetch(`/api/admin/events/${selectedEventId}/streams`, {
+    const res = await adminFetch(`/api/admin/events/${selectedEventId}/streams`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -87,7 +88,7 @@ export default function AdminStreamsPage() {
   }
 
   async function updateStream(id, patch) {
-    const res = await fetch(`/api/admin/streams/${id}`, {
+    const res = await adminFetch(`/api/admin/streams/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),

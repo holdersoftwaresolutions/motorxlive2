@@ -1,7 +1,15 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import AdminNav from "./AdminNav";
 
 export default function AdminLayout({ title, children }) {
+  const router = useRouter();
+
+  function handleLogout() {
+    document.cookie = "motorxlive_admin_key=; path=/; max-age=0; samesite=lax";
+    router.push("/admin/login");
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
@@ -11,9 +19,14 @@ export default function AdminLayout({ title, children }) {
             <h1 style={styles.title}>{title}</h1>
           </div>
 
-          <Link href="/" style={styles.backLink}>
-            ← Back to site
-          </Link>
+          <div style={styles.topActions}>
+            <Link href="/" style={styles.backLink}>
+              ← Back to site
+            </Link>
+            <button onClick={handleLogout} style={styles.logoutButton}>
+              Logout
+            </button>
+          </div>
         </div>
 
         <AdminNav />
@@ -43,6 +56,11 @@ const styles = {
     gap: 20,
     marginBottom: 20,
   },
+  topActions: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+  },
   eyebrow: {
     fontSize: 13,
     textTransform: "uppercase",
@@ -59,5 +77,13 @@ const styles = {
     textDecoration: "none",
     fontSize: 14,
     marginTop: 8,
+  },
+  logoutButton: {
+    background: "#1b2a40",
+    color: "#fff",
+    border: "1px solid #31598b",
+    borderRadius: 10,
+    padding: "10px 14px",
+    cursor: "pointer",
   },
 };

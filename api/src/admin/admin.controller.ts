@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
 import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
+import { UseGuards } from "@nestjs/common";
+import { AdminKeyGuard } from "../auth/admin-key.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateCategoryDto,
@@ -8,6 +10,7 @@ import {
   UpdateEventDto,
 } from "./admin.dto";
 
+@UseGuards(AdminKeyGuard)
 @Controller("admin")
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
@@ -176,7 +179,7 @@ export class AdminController {
 
     return { ok: true, stream: updated };
   }
-  
+
   @Get("events/:id/streams")
   async listEventStreams(@Param("id") eventId: string) {
     return this.prisma.stream.findMany({

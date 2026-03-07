@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
+import { adminFetch } from "../../lib/adminFetch";
 
 export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
@@ -55,7 +56,7 @@ export default function AdminEventsPage() {
     e.preventDefault();
     setMessage("");
 
-    const res = await fetch("/api/admin/events", {
+    const res = await adminFetch("/api/admin/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -86,7 +87,7 @@ export default function AdminEventsPage() {
   }
 
   async function updateEvent(id, patch) {
-    const res = await fetch(`/api/admin/events/${id}`, {
+    const res = await adminFetch(`/api/admin/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),

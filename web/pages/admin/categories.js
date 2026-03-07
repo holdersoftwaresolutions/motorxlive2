@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
+import { adminFetch } from "../../lib/adminFetch";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -11,7 +12,7 @@ export default function AdminCategoriesPage() {
   const [message, setMessage] = useState("");
 
   async function loadCategories() {
-    const res = await fetch("/api/admin/categories");
+    const res = await adminFetch("/api/admin/categories");
     const json = await res.json();
     setCategories(Array.isArray(json) ? json : []);
   }
@@ -24,7 +25,7 @@ export default function AdminCategoriesPage() {
     e.preventDefault();
     setMessage("");
 
-    const res = await fetch("/api/admin/categories", {
+    const res = await adminFetch("/api/admin/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -45,7 +46,7 @@ export default function AdminCategoriesPage() {
   }
 
   async function updateCategory(id, patch) {
-    const res = await fetch(`/api/admin/categories/${id}`, {
+    const res = await adminFetchetch(`/api/admin/categories/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
