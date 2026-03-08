@@ -32,14 +32,23 @@ model Event {
   description  String?
   startAt      DateTime?
   endAt        DateTime?
-  heroImageUrl String?   // flyer URL
+  heroImageUrl String?
+
+  venueName    String?
+  addressLine1 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  latitude     Float?
+  longitude    Float?
 
   categoryId   String?
   category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   videos       Video[]
-
-  streams Stream[]
+  streams      Stream[]
 }
 
 model Stream {

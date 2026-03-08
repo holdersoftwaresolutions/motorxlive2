@@ -1,11 +1,4 @@
-import {
-  IsDateString,
-  IsInt,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from "class-validator";
+import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
 
 export class CreateCategoryDto {
   @IsString()
@@ -63,6 +56,38 @@ export class CreateEventDto {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+    @IsOptional()
+  @IsString()
+  venueName?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }
 
 export class UpdateEventDto {
@@ -93,4 +118,36 @@ export class UpdateEventDto {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+    @IsOptional()
+  @IsString()
+  venueName?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }

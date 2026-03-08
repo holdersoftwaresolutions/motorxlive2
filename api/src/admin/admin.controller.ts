@@ -80,13 +80,23 @@ export class AdminController {
   @Post("events")
   async createEvent(@Body() dto: CreateEventDto) {
     return this.prisma.event.create({
-      data: {
+        data: {
         title: dto.title,
         slug: dto.slug,
         description: dto.description,
         startAt: dto.startAt ? new Date(dto.startAt) : undefined,
         endAt: dto.endAt ? new Date(dto.endAt) : undefined,
         heroImageUrl: dto.heroImageUrl,
+
+        venueName: dto.venueName,
+        addressLine1: dto.addressLine1,
+        city: dto.city,
+        state: dto.state,
+        postalCode: dto.postalCode,
+        country: dto.country,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+
         categoryId: dto.categoryId,
       },
       include: {
@@ -107,6 +117,14 @@ export class AdminController {
         ...(dto.endAt !== undefined ? { endAt: dto.endAt ? new Date(dto.endAt) : null } : {}),
         ...(dto.heroImageUrl !== undefined ? { heroImageUrl: dto.heroImageUrl } : {}),
         ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+        ...(dto.venueName !== undefined ? { venueName: dto.venueName } : {}),
+        ...(dto.addressLine1 !== undefined ? { addressLine1: dto.addressLine1 } : {}),
+        ...(dto.city !== undefined ? { city: dto.city } : {}),
+        ...(dto.state !== undefined ? { state: dto.state } : {}),
+        ...(dto.postalCode !== undefined ? { postalCode: dto.postalCode } : {}),
+        ...(dto.country !== undefined ? { country: dto.country } : {}),
+        ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
+        ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
       },
       include: {
         category: true,
