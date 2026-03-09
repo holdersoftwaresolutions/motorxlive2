@@ -37,7 +37,7 @@ export default function AdminVideosPage() {
       return;
     }
 
-    const res = await adminfetch(`/api/admin/events/${eventId}/videos`);
+    const res = await adminFetch(`/api/admin/events/${eventId}/videos`);
     const json = await res.json();
     setVideos(Array.isArray(json) ? json : []);
   }

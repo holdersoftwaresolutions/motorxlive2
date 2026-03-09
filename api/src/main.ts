@@ -33,6 +33,6 @@ app.use(
     })
   );
 
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3000);
+  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3001);
 }
 bootstrap();

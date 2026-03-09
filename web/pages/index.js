@@ -1,15 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import EventCard from "../components/EventCard";
 
+function newSessionToken() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
 export default function HomePage() {
   const [categories, setCategories] = useState([]);
-  const [eventsData, setEventsData] = useState({ items: [] });
+  const [upcomingEventsData, setUpcomingEventsData] = useState({ items: [] });
+  const [nearbyEventsData, setNearbyEventsData] = useState({ items: [] });
+
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [loadingNearby, setLoadingNearby] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+
   const [error, setError] = useState("");
+  const [nearbyError, setNearbyError] = useState("");
   const [resolvedLocationLabel, setResolvedLocationLabel] = useState("");
+  const [locationStatus, setLocationStatus] = useState("Trying to load nearby events from your location.");
 
   const [search, setSearch] = useState({
     q: "",
@@ -19,35 +34,41 @@ export default function HomePage() {
     radiusMiles: "100",
   });
 
-  const [locationMode, setLocationMode] = useState("text"); // "text" | "device"
+  const [locationMode, setLocationMode] = useState("text");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const debounceRef = useRef(null);
+  const sessionTokenRef = useRef(newSessionToken());
 
   async function loadDefault() {
     try {
       setLoading(true);
       setError("");
-      setResolvedLocationLabel("");
 
-      const [categoriesRes, eventsRes] = await Promise.all([
+      const today = new Date().toISOString();
+
+      const [categoriesRes, upcomingRes] = await Promise.all([
         fetch("/api/public/categories"),
-        fetch("/api/public/events?page=1&pageSize=12"),
+        fetch(`/api/public/events?page=1&pageSize=12&from=${encodeURIComponent(today)}`),
       ]);
 
       const categoriesText = await categoriesRes.text();
-      const eventsText = await eventsRes.text();
+      const upcomingText = await upcomingRes.text();
 
       if (!categoriesRes.ok) {
         throw new Error(`Categories request failed: ${categoriesText}`);
       }
 
-      if (!eventsRes.ok) {
-        throw new Error(`Events request failed: ${eventsText}`);
+      if (!upcomingRes.ok) {
+        throw new Error(`Upcoming events request failed: ${upcomingText}`);
       }
 
       const categoriesJson = categoriesText ? JSON.parse(categoriesText) : [];
-      const eventsJson = eventsText ? JSON.parse(eventsText) : { items: [] };
+      const upcomingJson = upcomingText ? JSON.parse(upcomingText) : { items: [] };
 
       setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
-      setEventsData(eventsJson || { items: [] });
+      setUpcomingEventsData(upcomingJson || { items: [] });
     } catch (err) {
       setError(err.message || "Failed to load homepage content.");
     } finally {
@@ -55,42 +76,211 @@ export default function HomePage() {
     }
   }
 
+  async function loadNearbyEvents(lat, lng, radiusMiles = "100", q = "") {
+    try {
+      setLoadingNearby(true);
+      setNearbyError("");
+
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("pageSize", "12");
+      params.set("lat", String(lat));
+      params.set("lng", String(lng));
+      params.set("radiusMiles", String(radiusMiles));
+
+      if (q?.trim()) {
+        params.set("q", q.trim());
+      }
+
+      const res = await fetch(`/api/public/events?${params.toString()}`);
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(text || "Failed to load nearby events");
+      }
+
+      const json = text ? JSON.parse(text) : { items: [] };
+      setNearbyEventsData(json || { items: [] });
+    } catch (err) {
+      setNearbyError(err.message || "Failed to load nearby events.");
+      setNearbyEventsData({ items: [] });
+    } finally {
+      setLoadingNearby(false);
+    }
+  }
+
+  function getGeolocationErrorMessage(geoError) {
+    if (!geoError) return "Unable to get your location.";
+
+    switch (geoError.code) {
+      case 1:
+        return "Location access was denied. You can still search by city, state, or ZIP.";
+      case 2:
+        return "Your location could not be determined. Try again or search by city, state, or ZIP.";
+      case 3:
+        return "Location request timed out. Try again or search by city, state, or ZIP.";
+      default:
+        return "Unable to get your location. You can still search by city, state, or ZIP.";
+    }
+  }
+
+  async function tryAutoLoadNearby() {
+    if (typeof window === "undefined") return;
+    if (!navigator.geolocation) {
+      setNearbyError("Geolocation is not supported in this browser. Search by city, state, or ZIP.");
+      setLocationStatus("Location search unavailable in this browser.");
+      return;
+    }
+
+    setLocating(true);
+    setLoadingNearby(true);
+    setNearbyError("");
+    setLocationStatus("Requesting location permission for nearby events...");
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = String(position.coords.latitude);
+        const lng = String(position.coords.longitude);
+
+        setLocationMode("device");
+        setSearch((s) => ({
+          ...s,
+          lat,
+          lng,
+        }));
+        setResolvedLocationLabel("Showing nearby events from your current location");
+        setLocationStatus("Using your current location.");
+
+        await loadNearbyEvents(lat, lng, search.radiusMiles || "100", search.q);
+        setLocating(false);
+      },
+      (geoError) => {
+        setNearbyError(getGeolocationErrorMessage(geoError));
+        setLocationStatus("Location not available. Search manually instead.");
+        setLoadingNearby(false);
+        setLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
+  }
+
   useEffect(() => {
     loadDefault();
   }, []);
 
-  async function resolveLocationTextToCoords(locationText) {
-    const res = await fetch(`/api/public/geocode?q=${encodeURIComponent(locationText)}`);
-    const text = await res.text();
+  useEffect(() => {
+    tryAutoLoadNearby();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    if (!res.ok) {
-      throw new Error(text || "Failed to geocode location");
+  async function fetchSuggestions(value) {
+    if (!value.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
 
-    const json = text ? JSON.parse(text) : null;
+    try {
+      setSuggesting(true);
 
-    if (!json || json.ok === false) {
-      throw new Error(json?.error || "Failed to geocode location");
+      const params = new URLSearchParams();
+      params.set("q", value.trim());
+      params.set("sessionToken", sessionTokenRef.current);
+
+      const res = await fetch(`/api/public/location/suggest?${params.toString()}`);
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(text || "Failed to load location suggestions");
+      }
+
+      const json = text ? JSON.parse(text) : { suggestions: [] };
+      const list = Array.isArray(json.suggestions) ? json.suggestions : [];
+
+      setSuggestions(list);
+      setShowSuggestions(list.length > 0);
+    } catch {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function handleLocationInputChange(value) {
+    setLocationMode("text");
+    setResolvedLocationLabel("");
+    setSearch((s) => ({
+      ...s,
+      locationText: value,
+    }));
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
     }
 
-    return {
-      lat: json.lat,
-      lng: json.lng,
-      displayName: json.displayName,
-    };
+    debounceRef.current = setTimeout(() => {
+      fetchSuggestions(value);
+    }, 250);
+  }
+
+  async function handleSuggestionSelect(suggestion) {
+    try {
+      setSuggesting(true);
+      setShowSuggestions(false);
+
+      const params = new URLSearchParams();
+      params.set("mapboxId", suggestion.mapboxId);
+      params.set("sessionToken", sessionTokenRef.current);
+
+      const res = await fetch(`/api/public/location/retrieve?${params.toString()}`);
+      const text = await res.text();
+
+      if (!res.ok) {
+        throw new Error(text || "Failed to retrieve location");
+      }
+
+      const json = text ? JSON.parse(text) : null;
+
+      if (!json || json.ok === false) {
+        throw new Error(json?.error || "Failed to retrieve location");
+      }
+
+      setSearch((s) => ({
+        ...s,
+        locationText: suggestion.fullAddress || suggestion.placeFormatted || suggestion.name,
+        lat: String(json.lat),
+        lng: String(json.lng),
+      }));
+
+      setResolvedLocationLabel(`Searching near ${json.displayName}`);
+      sessionTokenRef.current = newSessionToken();
+    } catch (err) {
+      setError(err.message || "Failed to select location");
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   async function handleUseMyLocation() {
     if (!navigator.geolocation) {
       setError("Geolocation is not supported in this browser.");
+      setLocationStatus("Location search unavailable in this browser.");
       return;
     }
 
     setError("");
+    setNearbyError("");
     setResolvedLocationLabel("");
+    setLocating(true);
+    setLocationStatus("Requesting your current location...");
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      async (position) => {
         const nextLat = String(position.coords.latitude);
         const nextLng = String(position.coords.longitude);
 
@@ -101,9 +291,15 @@ export default function HomePage() {
           lng: nextLng,
         }));
         setResolvedLocationLabel("Using your current location");
+        setLocationStatus("Using your current location.");
+
+        await loadNearbyEvents(nextLat, nextLng, search.radiusMiles || "100", search.q);
+        setLocating(false);
       },
-      () => {
-        setError("Unable to get your location.");
+      (geoError) => {
+        setError(getGeolocationErrorMessage(geoError));
+        setLocationStatus("Location not available. Search by city, state, or ZIP instead.");
+        setLocating(false);
       },
       {
         enableHighAccuracy: true,
@@ -119,49 +315,36 @@ export default function HomePage() {
     try {
       setSearching(true);
       setError("");
-      setResolvedLocationLabel("");
+      setNearbyError("");
 
-      let lat = search.lat;
-      let lng = search.lng;
-      let displayName = "";
+      const lat = search.lat;
+      const lng = search.lng;
 
-      if (search.locationText.trim()) {
-        const resolved = await resolveLocationTextToCoords(search.locationText.trim());
-        lat = String(resolved.lat);
-        lng = String(resolved.lng);
-        displayName = resolved.displayName || search.locationText.trim();
+      if (lat && lng) {
+        await loadNearbyEvents(lat, lng, search.radiusMiles || "100", search.q);
 
-        setLocationMode("text");
-        setSearch((s) => ({
-          ...s,
-          lat,
-          lng,
-        }));
-      }
+        if (locationMode === "device") {
+          setResolvedLocationLabel("Searching near your current location");
+          setLocationStatus("Using your current location.");
+        }
+      } else {
+        const params = new URLSearchParams();
+        params.set("page", "1");
+        params.set("pageSize", "24");
 
-      const params = new URLSearchParams();
-      params.set("page", "1");
-      params.set("pageSize", "24");
+        if (search.q.trim()) {
+          params.set("q", search.q.trim());
+        }
 
-      if (search.q.trim()) params.set("q", search.q.trim());
-      if (lat) params.set("lat", lat);
-      if (lng) params.set("lng", lng);
-      if (search.radiusMiles) params.set("radiusMiles", search.radiusMiles);
+        const res = await fetch(`/api/public/events?${params.toString()}`);
+        const text = await res.text();
 
-      const res = await fetch(`/api/public/events?${params.toString()}`);
-      const text = await res.text();
+        if (!res.ok) {
+          throw new Error(text || "Failed to search events");
+        }
 
-      if (!res.ok) {
-        throw new Error(text || "Failed to search events");
-      }
-
-      const json = text ? JSON.parse(text) : { items: [] };
-      setEventsData(json || { items: [] });
-
-      if (displayName) {
-        setResolvedLocationLabel(`Searching near ${displayName}`);
-      } else if (lat && lng && locationMode === "device") {
-        setResolvedLocationLabel("Searching near your current location");
+        const json = text ? JSON.parse(text) : { items: [] };
+        setUpcomingEventsData(json || { items: [] });
       }
     } catch (err) {
       setError(err.message || "Failed to search events.");
@@ -180,7 +363,14 @@ export default function HomePage() {
     });
     setLocationMode("text");
     setResolvedLocationLabel("");
+    setNearbyError("");
+    setLocationStatus("Trying to load nearby events from your location.");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setNearbyEventsData({ items: [] });
+    sessionTokenRef.current = newSessionToken();
     loadDefault();
+    tryAutoLoadNearby();
   }
 
   return (
@@ -214,19 +404,39 @@ export default function HomePage() {
                 onChange={(e) => setSearch((s) => ({ ...s, q: e.target.value }))}
               />
 
-              <input
-                style={styles.input}
-                placeholder="City, State or ZIP"
-                value={search.locationText}
-                onChange={(e) => {
-                  setLocationMode("text");
-                  setResolvedLocationLabel("");
-                  setSearch((s) => ({
-                    ...s,
-                    locationText: e.target.value,
-                  }));
-                }}
-              />
+              <div style={styles.autocompleteWrap}>
+                <input
+                  style={styles.input}
+                  placeholder="City, State or ZIP"
+                  value={search.locationText}
+                  onChange={(e) => handleLocationInputChange(e.target.value)}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                />
+
+                {suggesting ? (
+                  <div style={styles.suggestLoading}>Loading suggestions...</div>
+                ) : null}
+
+                {showSuggestions && suggestions.length > 0 ? (
+                  <div style={styles.suggestions}>
+                    {suggestions.map((item) => (
+                      <button
+                        key={item.mapboxId}
+                        type="button"
+                        style={styles.suggestionItem}
+                        onClick={() => handleSuggestionSelect(item)}
+                      >
+                        <div style={styles.suggestionTitle}>{item.name}</div>
+                        <div style={styles.suggestionMeta}>
+                          {item.fullAddress || item.placeFormatted}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
               <input
                 style={styles.input}
@@ -239,13 +449,24 @@ export default function HomePage() {
               <div style={styles.searchActions}>
                 <button
                   type="button"
-                  style={styles.secondaryButton}
+                  style={{
+                    ...styles.secondaryButton,
+                    ...(locating ? styles.buttonDisabled : {}),
+                  }}
                   onClick={handleUseMyLocation}
+                  disabled={locating}
                 >
-                  Use My Location
+                  {locating ? "Locating..." : "Use My Location"}
                 </button>
 
-                <button type="submit" style={styles.button}>
+                <button
+                  type="submit"
+                  style={{
+                    ...styles.button,
+                    ...(searching ? styles.buttonDisabled : {}),
+                  }}
+                  disabled={searching}
+                >
                   {searching ? "Searching..." : "Search"}
                 </button>
 
@@ -259,6 +480,8 @@ export default function HomePage() {
               </div>
             </form>
 
+            <p style={styles.locationStatus}>{locationStatus}</p>
+
             {resolvedLocationLabel ? (
               <p style={styles.locationHint}>{resolvedLocationLabel}</p>
             ) : null}
@@ -268,6 +491,53 @@ export default function HomePage() {
                 Coordinates ready: {search.lat}, {search.lng}
               </p>
             ) : null}
+          </section>
+
+          <section style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>Nearby Events</h2>
+            </div>
+
+            {loadingNearby ? (
+              <p style={styles.mutedText}>Loading nearby events...</p>
+            ) : nearbyError ? (
+              <p style={styles.errorText}>{nearbyError}</p>
+            ) : !nearbyEventsData?.items?.length ? (
+              <p style={styles.mutedText}>No nearby events found yet.</p>
+            ) : (
+              <div style={styles.eventGrid}>
+                {nearbyEventsData.items.map((event) => (
+                  <div key={event.id}>
+                    <EventCard event={event} />
+                    {event.distanceMiles != null ? (
+                      <p style={styles.distanceText}>
+                        {event.distanceMiles.toFixed(1)} miles away
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>Upcoming Events</h2>
+            </div>
+
+            {loading ? (
+              <p style={styles.mutedText}>Loading upcoming events...</p>
+            ) : error ? (
+              <p style={styles.errorText}>{error}</p>
+            ) : !upcomingEventsData?.items?.length ? (
+              <p style={styles.mutedText}>No upcoming events found.</p>
+            ) : (
+              <div style={styles.eventGrid}>
+                {upcomingEventsData.items.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </div>
+            )}
           </section>
 
           <section style={styles.section}>
@@ -290,33 +560,6 @@ export default function HomePage() {
                     <div style={styles.categoryName}>{category.name}</div>
                     <div style={styles.categoryMeta}>View events</div>
                   </Link>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>Events</h2>
-            </div>
-
-            {loading ? (
-              <p style={styles.mutedText}>Loading events...</p>
-            ) : error ? (
-              <p style={styles.errorText}>{error}</p>
-            ) : !eventsData?.items?.length ? (
-              <p style={styles.mutedText}>No events found.</p>
-            ) : (
-              <div style={styles.eventGrid}>
-                {eventsData.items.map((event) => (
-                  <div key={event.id}>
-                    <EventCard event={event} />
-                    {event.distanceMiles != null ? (
-                      <p style={styles.distanceText}>
-                        {event.distanceMiles.toFixed(1)} miles away
-                      </p>
-                    ) : null}
-                  </div>
                 ))}
               </div>
             )}
@@ -370,9 +613,9 @@ const styles = {
   },
   searchForm: {
     display: "grid",
-    gridTemplateColumns: "2fr 1.4fr 180px auto",
+    gridTemplateColumns: "2fr 1.6fr 180px auto",
     gap: 12,
-    alignItems: "end",
+    alignItems: "start",
   },
   input: {
     width: "100%",
@@ -381,6 +624,45 @@ const styles = {
     color: "#f5f7fa",
     borderRadius: 10,
     padding: "12px 14px",
+  },
+  autocompleteWrap: {
+    position: "relative",
+  },
+  suggestions: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    right: 0,
+    background: "#11161c",
+    border: "1px solid #2a3647",
+    borderRadius: 12,
+    overflow: "hidden",
+    zIndex: 20,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+  },
+  suggestionItem: {
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    color: "#f5f7fa",
+    border: 0,
+    borderBottom: "1px solid #1f2937",
+    padding: "12px 14px",
+    cursor: "pointer",
+  },
+  suggestionTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    marginBottom: 4,
+  },
+  suggestionMeta: {
+    fontSize: 12,
+    color: "#9aa4af",
+  },
+  suggestLoading: {
+    marginTop: 8,
+    color: "#9aa4af",
+    fontSize: 12,
   },
   searchActions: {
     display: "flex",
@@ -402,6 +684,10 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
     cursor: "pointer",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+    cursor: "not-allowed",
   },
   section: {
     marginTop: 36,
@@ -462,5 +748,10 @@ const styles = {
     marginTop: 8,
     color: "#9aa4af",
     fontSize: 13,
+  },
+  locationStatus: {
+    marginTop: 12,
+    color: "#c9d1d9",
+    fontSize: 14,
   },
 };
