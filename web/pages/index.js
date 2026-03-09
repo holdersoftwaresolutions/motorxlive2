@@ -9,6 +9,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [resolvedLocationLabel, setResolvedLocationLabel] = useState("");
 
   const [search, setSearch] = useState({
     q: "",
@@ -24,21 +25,31 @@ export default function HomePage() {
     try {
       setLoading(true);
       setError("");
+      setResolvedLocationLabel("");
 
       const [categoriesRes, eventsRes] = await Promise.all([
         fetch("/api/public/categories"),
         fetch("/api/public/events?page=1&pageSize=12"),
       ]);
 
-      const [categoriesJson, eventsJson] = await Promise.all([
-        categoriesRes.json(),
-        eventsRes.json(),
-      ]);
+      const categoriesText = await categoriesRes.text();
+      const eventsText = await eventsRes.text();
+
+      if (!categoriesRes.ok) {
+        throw new Error(`Categories request failed: ${categoriesText}`);
+      }
+
+      if (!eventsRes.ok) {
+        throw new Error(`Events request failed: ${eventsText}`);
+      }
+
+      const categoriesJson = categoriesText ? JSON.parse(categoriesText) : [];
+      const eventsJson = eventsText ? JSON.parse(eventsText) : { items: [] };
 
       setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
       setEventsData(eventsJson || { items: [] });
-    } catch {
-      setError("Failed to load homepage content.");
+    } catch (err) {
+      setError(err.message || "Failed to load homepage content.");
     } finally {
       setLoading(false);
     }
@@ -50,9 +61,15 @@ export default function HomePage() {
 
   async function resolveLocationTextToCoords(locationText) {
     const res = await fetch(`/api/public/geocode?q=${encodeURIComponent(locationText)}`);
-    const json = await res.json();
+    const text = await res.text();
 
-    if (!res.ok || json?.ok === false) {
+    if (!res.ok) {
+      throw new Error(text || "Failed to geocode location");
+    }
+
+    const json = text ? JSON.parse(text) : null;
+
+    if (!json || json.ok === false) {
       throw new Error(json?.error || "Failed to geocode location");
     }
 
@@ -70,15 +87,20 @@ export default function HomePage() {
     }
 
     setError("");
+    setResolvedLocationLabel("");
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        const nextLat = String(position.coords.latitude);
+        const nextLng = String(position.coords.longitude);
+
         setLocationMode("device");
         setSearch((s) => ({
           ...s,
-          lat: String(position.coords.latitude),
-          lng: String(position.coords.longitude),
+          lat: nextLat,
+          lng: nextLng,
         }));
+        setResolvedLocationLabel("Using your current location");
       },
       () => {
         setError("Unable to get your location.");
@@ -97,15 +119,19 @@ export default function HomePage() {
     try {
       setSearching(true);
       setError("");
+      setResolvedLocationLabel("");
 
       let lat = search.lat;
       let lng = search.lng;
+      let displayName = "";
 
-      if (search.locationText && (!lat || !lng || locationMode === "text")) {
-        const resolved = await resolveLocationTextToCoords(search.locationText);
+      if (search.locationText.trim()) {
+        const resolved = await resolveLocationTextToCoords(search.locationText.trim());
         lat = String(resolved.lat);
         lng = String(resolved.lng);
+        displayName = resolved.displayName || search.locationText.trim();
 
+        setLocationMode("text");
         setSearch((s) => ({
           ...s,
           lat,
@@ -117,15 +143,26 @@ export default function HomePage() {
       params.set("page", "1");
       params.set("pageSize", "24");
 
-      if (search.q) params.set("q", search.q);
+      if (search.q.trim()) params.set("q", search.q.trim());
       if (lat) params.set("lat", lat);
       if (lng) params.set("lng", lng);
       if (search.radiusMiles) params.set("radiusMiles", search.radiusMiles);
 
       const res = await fetch(`/api/public/events?${params.toString()}`);
-      const json = await res.json();
+      const text = await res.text();
 
+      if (!res.ok) {
+        throw new Error(text || "Failed to search events");
+      }
+
+      const json = text ? JSON.parse(text) : { items: [] };
       setEventsData(json || { items: [] });
+
+      if (displayName) {
+        setResolvedLocationLabel(`Searching near ${displayName}`);
+      } else if (lat && lng && locationMode === "device") {
+        setResolvedLocationLabel("Searching near your current location");
+      }
     } catch (err) {
       setError(err.message || "Failed to search events.");
     } finally {
@@ -142,6 +179,7 @@ export default function HomePage() {
       radiusMiles: "100",
     });
     setLocationMode("text");
+    setResolvedLocationLabel("");
     loadDefault();
   }
 
@@ -182,6 +220,7 @@ export default function HomePage() {
                 value={search.locationText}
                 onChange={(e) => {
                   setLocationMode("text");
+                  setResolvedLocationLabel("");
                   setSearch((s) => ({
                     ...s,
                     locationText: e.target.value,
@@ -220,9 +259,13 @@ export default function HomePage() {
               </div>
             </form>
 
-            {(search.lat && search.lng) ? (
-              <p style={styles.locationHint}>
-                Search coordinates ready: {search.lat}, {search.lng}
+            {resolvedLocationLabel ? (
+              <p style={styles.locationHint}>{resolvedLocationLabel}</p>
+            ) : null}
+
+            {search.lat && search.lng ? (
+              <p style={styles.coordsHint}>
+                Coordinates ready: {search.lat}, {search.lng}
               </p>
             ) : null}
           </section>
@@ -412,6 +455,11 @@ const styles = {
   },
   locationHint: {
     marginTop: 12,
+    color: "#8fd19e",
+    fontSize: 14,
+  },
+  coordsHint: {
+    marginTop: 8,
     color: "#9aa4af",
     fontSize: 13,
   },

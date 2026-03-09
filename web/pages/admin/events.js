@@ -18,6 +18,14 @@ export default function AdminEventsPage() {
     endAt: "",
     heroImageUrl: "",
     categoryId: "",
+    venueName: "",
+    addressLine1: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
+    latitude: "",
+    longitude: "",
   });
 
   async function loadAll() {
@@ -94,6 +102,14 @@ export default function AdminEventsPage() {
         startAt: form.startAt || undefined,
         endAt: form.endAt || undefined,
         heroImageUrl: form.heroImageUrl || undefined,
+        venueName: form.venueName || undefined,
+        addressLine1: form.addressLine1 || undefined,
+        city: form.city || undefined,
+        state: form.state || undefined,
+        postalCode: form.postalCode || undefined,
+        country: form.country || undefined,
+        latitude: form.latitude ? Number(form.latitude) : undefined,
+        longitude: form.longitude ? Number(form.longitude) : undefined,
       }),
     });
 
@@ -148,7 +164,14 @@ export default function AdminEventsPage() {
             <textarea style={styles.textarea} placeholder="Description" value={form.description} onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} />
             <input style={styles.input} type="datetime-local" value={form.startAt} onChange={(e) => setForm((s) => ({ ...s, startAt: e.target.value }))} />
             <input style={styles.input} type="datetime-local" value={form.endAt} onChange={(e) => setForm((s) => ({ ...s, endAt: e.target.value }))} />
-
+            <input style={styles.input} placeholder="Venue Name" value={form.venueName} onChange={(e) => setForm((s) => ({ ...s, venueName: e.target.value }))} />
+            <input style={styles.input} placeholder="Address Line 1" value={form.addressLine1} onChange={(e) => setForm((s) => ({ ...s, addressLine1: e.target.value }))} />
+            <input style={styles.input} placeholder="City" value={form.city} onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))} />
+            <input style={styles.input} placeholder="State" value={form.state} onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))} />
+            <input style={styles.input} placeholder="Postal Code" value={form.postalCode} onChange={(e) => setForm((s) => ({ ...s, postalCode: e.target.value }))} />
+            <input style={styles.input} placeholder="Country" value={form.country} onChange={(e) => setForm((s) => ({ ...s, country: e.target.value }))} />
+            <input style={styles.input} type="number" step="any" placeholder="Latitude" value={form.latitude} onChange={(e) => setForm((s) => ({ ...s, latitude: e.target.value }))} />
+            <input style={styles.input} type="number" step="any" placeholder="Longitude" value={form.longitude} onChange={(e) => setForm((s) => ({ ...s, longitude: e.target.value }))} />
             <select
               style={styles.input}
               value={form.categoryId}
