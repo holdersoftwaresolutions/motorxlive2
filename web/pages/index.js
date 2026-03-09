@@ -24,7 +24,9 @@ export default function HomePage() {
   const [error, setError] = useState("");
   const [nearbyError, setNearbyError] = useState("");
   const [resolvedLocationLabel, setResolvedLocationLabel] = useState("");
-  const [locationStatus, setLocationStatus] = useState("Trying to load nearby events from your location.");
+  const [locationStatus, setLocationStatus] = useState(
+    "Trying to load nearby events from your location."
+  );
 
   const [search, setSearch] = useState({
     q: "",
@@ -127,7 +129,9 @@ export default function HomePage() {
   async function tryAutoLoadNearby() {
     if (typeof window === "undefined") return;
     if (!navigator.geolocation) {
-      setNearbyError("Geolocation is not supported in this browser. Search by city, state, or ZIP.");
+      setNearbyError(
+        "Geolocation is not supported in this browser. Search by city, state, or ZIP."
+      );
       setLocationStatus("Location search unavailable in this browser.");
       return;
     }
@@ -252,7 +256,8 @@ export default function HomePage() {
 
       setSearch((s) => ({
         ...s,
-        locationText: suggestion.fullAddress || suggestion.placeFormatted || suggestion.name,
+        locationText:
+          suggestion.fullAddress || suggestion.placeFormatted || suggestion.name,
         lat: String(json.lat),
         lng: String(json.lng),
       }));
@@ -298,7 +303,9 @@ export default function HomePage() {
       },
       (geoError) => {
         setError(getGeolocationErrorMessage(geoError));
-        setLocationStatus("Location not available. Search by city, state, or ZIP instead.");
+        setLocationStatus(
+          "Location not available. Search by city, state, or ZIP instead."
+        );
         setLocating(false);
       },
       {
@@ -389,8 +396,63 @@ export default function HomePage() {
             <p style={styles.eyebrow}>MotorXLive</p>
             <h1 style={styles.heroTitle}>Find events near you and watch them live.</h1>
             <p style={styles.heroSubtitle}>
-              Search by keyword, use your current location, or enter a city, state, or ZIP code to find events within a radius.
+              Search by keyword, use your current location, or enter a city, state,
+              or ZIP code to find events within a radius.
             </p>
+          </section>
+
+          <section style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>Browse Categories</h2>
+            </div>
+
+            {loading ? (
+              <p style={styles.mutedText}>Loading categories...</p>
+            ) : categories.length === 0 ? (
+              <p style={styles.mutedText}>No categories available yet.</p>
+            ) : (
+              <div style={styles.categoryGrid}>
+                {categories.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={`/categories/${category.slug}`}
+                    style={styles.categoryCard}
+                  >
+                    <div style={styles.categoryName}>{category.name}</div>
+                    <div style={styles.categoryMeta}>View events</div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>For Streamers & Media</h2>
+            </div>
+
+            <div style={styles.contributorGrid}>
+              <Link href="/admin/login" style={styles.contributorCard}>
+                <div style={styles.contributorTitle}>Contributor Login</div>
+                <div style={styles.contributorText}>
+                  Log in to add or manage live streams and event videos.
+                </div>
+              </Link>
+
+              <Link href="/admin/streams" style={styles.contributorCard}>
+                <div style={styles.contributorTitle}>Add Live Stream</div>
+                <div style={styles.contributorText}>
+                  Attach livestream sources to events and manage playback details.
+                </div>
+              </Link>
+
+              <Link href="/admin/videos" style={styles.contributorCard}>
+                <div style={styles.contributorTitle}>Add Video</div>
+                <div style={styles.contributorText}>
+                  Publish completed videos and on-demand event content.
+                </div>
+              </Link>
+            </div>
           </section>
 
           <section style={styles.searchPanel}>
@@ -443,7 +505,9 @@ export default function HomePage() {
                 type="number"
                 placeholder="Radius (miles)"
                 value={search.radiusMiles}
-                onChange={(e) => setSearch((s) => ({ ...s, radiusMiles: e.target.value }))}
+                onChange={(e) =>
+                  setSearch((s) => ({ ...s, radiusMiles: e.target.value }))
+                }
               />
 
               <div style={styles.searchActions}>
@@ -539,31 +603,6 @@ export default function HomePage() {
               </div>
             )}
           </section>
-
-          <section style={styles.section}>
-            <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>Browse Categories</h2>
-            </div>
-
-            {loading ? (
-              <p style={styles.mutedText}>Loading categories...</p>
-            ) : categories.length === 0 ? (
-              <p style={styles.mutedText}>No categories available yet.</p>
-            ) : (
-              <div style={styles.categoryGrid}>
-                {categories.map((category) => (
-                  <Link
-                    key={category.id}
-                    href={`/categories/${category.slug}`}
-                    style={styles.categoryCard}
-                  >
-                    <div style={styles.categoryName}>{category.name}</div>
-                    <div style={styles.categoryMeta}>View events</div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
         </div>
       </div>
     </>
@@ -604,12 +643,70 @@ const styles = {
     color: "#c9d1d9",
     margin: 0,
   },
+  section: {
+    marginTop: 36,
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    margin: 0,
+  },
+  categoryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 14,
+  },
+  categoryCard: {
+    textDecoration: "none",
+    color: "#f5f7fa",
+    border: "1px solid #1f2937",
+    background: "#11161c",
+    borderRadius: 14,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  categoryName: {
+    fontSize: 18,
+    fontWeight: 700,
+  },
+  categoryMeta: {
+    fontSize: 14,
+    color: "#9aa4af",
+  },
+  contributorGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gap: 14,
+  },
+  contributorCard: {
+    textDecoration: "none",
+    color: "#f5f7fa",
+    border: "1px solid #1f2937",
+    background: "#11161c",
+    borderRadius: 14,
+    padding: 18,
+    display: "grid",
+    gap: 10,
+  },
+  contributorTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+  },
+  contributorText: {
+    fontSize: 14,
+    color: "#c9d1d9",
+    lineHeight: 1.5,
+  },
   searchPanel: {
     background: "#11161c",
     border: "1px solid #1f2937",
     borderRadius: 16,
     padding: 20,
-    marginTop: 10,
+    marginTop: 36,
   },
   searchForm: {
     display: "grid",
@@ -688,40 +785,6 @@ const styles = {
   buttonDisabled: {
     opacity: 0.7,
     cursor: "not-allowed",
-  },
-  section: {
-    marginTop: 36,
-  },
-  sectionHeader: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    margin: 0,
-  },
-  categoryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 14,
-  },
-  categoryCard: {
-    textDecoration: "none",
-    color: "#f5f7fa",
-    border: "1px solid #1f2937",
-    background: "#11161c",
-    borderRadius: 14,
-    padding: 18,
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-  categoryName: {
-    fontSize: 18,
-    fontWeight: 700,
-  },
-  categoryMeta: {
-    fontSize: 14,
-    color: "#9aa4af",
   },
   eventGrid: {
     display: "grid",
