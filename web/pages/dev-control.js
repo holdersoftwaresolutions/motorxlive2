@@ -67,11 +67,11 @@ export default function DevControlPage() {
     const data = await parseResponse(res);
 
     if (!res.ok) {
-      const message =
+      const msg =
         typeof data === "string"
           ? data
           : data?.error || data?.message || `Request failed: ${res.status}`;
-      throw new Error(message);
+      throw new Error(msg);
     }
 
     return data;
@@ -116,22 +116,28 @@ export default function DevControlPage() {
     return events.find((e) => e.id === selectedEventId) || null;
   }, [events, selectedEventId]);
 
+  async function ensureCategory(name, slug, sortOrder = 1) {
+    const existing = categories.find((c) => c.slug === slug);
+    if (existing) return existing;
+
+    const created = await api("/api/admin/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, slug, sortOrder }),
+    });
+
+    return created;
+  }
+
   async function createSeedCategory() {
     try {
       setLoading(true);
       setMessage("");
 
-      await api("/api/admin/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Drag Racing",
-          slug: "drag",
-          sortOrder: 1,
-        }),
-      });
+      const created = await ensureCategory("Drag Racing", "drag", 1);
+      setSelectedCategoryId(created.id);
 
-      setMessage("Seed category created.");
+      setMessage("Seed category created or reused.");
       await loadData();
     } catch (err) {
       setMessage(err.message || "Failed to create seed category.");
@@ -145,17 +151,10 @@ export default function DevControlPage() {
       setLoading(true);
       setMessage("");
 
-      await api("/api/admin/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Motocross",
-          slug: "motocross",
-          sortOrder: 2,
-        }),
-      });
+      const created = await ensureCategory("Motocross", "motocross", 2);
+      setSelectedCategoryId(created.id);
 
-      setMessage("Motocross category created.");
+      setMessage("Motocross category created or reused.");
       await loadData();
     } catch (err) {
       setMessage(err.message || "Failed to create category.");
@@ -196,6 +195,17 @@ export default function DevControlPage() {
     }
   }
 
+  async function createStreamForEvent(eventId) {
+    return api(`/api/admin/events/${eventId}/streams`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...streamForm,
+        priority: Number(streamForm.priority || 0),
+      }),
+    });
+  }
+
   async function createStream() {
     try {
       setLoading(true);
@@ -205,21 +215,29 @@ export default function DevControlPage() {
         throw new Error("Select an event first.");
       }
 
-      await api(`/api/admin/events/${selectedEventId}/streams`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...streamForm,
-          priority: Number(streamForm.priority || 0),
-        }),
-      });
-
+      await createStreamForEvent(selectedEventId);
       setMessage("Stream created.");
     } catch (err) {
       setMessage(err.message || "Failed to create stream.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function createVideoForEvent(eventId) {
+    return api(`/api/admin/events/${eventId}/videos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...videoForm,
+        durationSeconds: videoForm.durationSeconds
+          ? Number(videoForm.durationSeconds)
+          : undefined,
+        publishedAt: videoForm.publishedAt
+          ? new Date(videoForm.publishedAt).toISOString()
+          : undefined,
+      }),
+    });
   }
 
   async function createVideo() {
@@ -231,23 +249,49 @@ export default function DevControlPage() {
         throw new Error("Select an event first.");
       }
 
-      await api(`/api/admin/events/${selectedEventId}/videos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...videoForm,
-          durationSeconds: videoForm.durationSeconds
-            ? Number(videoForm.durationSeconds)
-            : undefined,
-          publishedAt: videoForm.publishedAt
-            ? new Date(videoForm.publishedAt).toISOString()
-            : undefined,
-        }),
-      });
-
+      await createVideoForEvent(selectedEventId);
       setMessage("Video created.");
     } catch (err) {
       setMessage(err.message || "Failed to create video.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function seedAll() {
+    try {
+      setLoading(true);
+      setMessage("Seeding category, event, stream, and video...");
+
+      const category = await ensureCategory("Drag Racing", "drag", 1);
+      setSelectedCategoryId(category.id);
+
+      const createdEvent = await api("/api/admin/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...eventForm,
+          categoryId: category.id,
+          latitude: eventForm.latitude ? Number(eventForm.latitude) : undefined,
+          longitude: eventForm.longitude ? Number(eventForm.longitude) : undefined,
+          startAt: eventForm.startAt ? new Date(eventForm.startAt).toISOString() : undefined,
+          endAt: eventForm.endAt ? new Date(eventForm.endAt).toISOString() : undefined,
+        }),
+      });
+
+      const eventId = createdEvent?.id;
+      if (!eventId) {
+        throw new Error("Event was created without an ID.");
+      }
+
+      await createStreamForEvent(eventId);
+      await createVideoForEvent(eventId);
+
+      setSelectedEventId(eventId);
+      setMessage("Seed all complete: category, event, stream, and video created.");
+      await loadData();
+    } catch (err) {
+      setMessage(err.message || "Failed to seed all test content.");
     } finally {
       setLoading(false);
     }
@@ -275,6 +319,10 @@ export default function DevControlPage() {
         {message ? <div style={styles.message}>{message}</div> : null}
 
         <div style={styles.topActions}>
+          <button style={styles.button} onClick={seedAll} disabled={loading}>
+            {loading ? "Working..." : "Seed All Test Content"}
+          </button>
+
           <button style={styles.secondaryButton} onClick={reloadEverything} disabled={loading}>
             {loading ? "Working..." : "Reload Data"}
           </button>
