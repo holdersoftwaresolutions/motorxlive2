@@ -1,7 +1,12 @@
-const API = process.env.API_BASE_URL || "http://localhost:3000";
+const API = process.env.API_BASE_URL || "http://localhost:3001";
 
 module.exports = {
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API}/:path*` }];
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${API}/:path*`,
+      },
+    ];
   },
 };

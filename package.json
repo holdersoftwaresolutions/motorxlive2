@@ -1,0 +1,14 @@
+{
+  "name": "motorxlive-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n API,WEB -c blue,green \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd api && npm run start:dev",
+    "dev:web": "cd web && npm run dev",
+    "build:web": "cd web && npm run build",
+    "build:api": "cd api && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
