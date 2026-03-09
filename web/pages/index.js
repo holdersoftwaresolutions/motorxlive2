@@ -7,44 +7,143 @@ export default function HomePage() {
   const [categories, setCategories] = useState([]);
   const [eventsData, setEventsData] = useState({ items: [] });
   const [loading, setLoading] = useState(true);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
 
+  const [search, setSearch] = useState({
+    q: "",
+    locationText: "",
+    lat: "",
+    lng: "",
+    radiusMiles: "100",
+  });
+
+  const [locationMode, setLocationMode] = useState("text"); // "text" | "device"
+
+  async function loadDefault() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [categoriesRes, eventsRes] = await Promise.all([
+        fetch("/api/public/categories"),
+        fetch("/api/public/events?page=1&pageSize=12"),
+      ]);
+
+      const [categoriesJson, eventsJson] = await Promise.all([
+        categoriesRes.json(),
+        eventsRes.json(),
+      ]);
+
+      setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
+      setEventsData(eventsJson || { items: [] });
+    } catch {
+      setError("Failed to load homepage content.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    let mounted = true;
+    loadDefault();
+  }, []);
 
-    async function load() {
-      try {
-        setLoading(true);
-        setError("");
+  async function resolveLocationTextToCoords(locationText) {
+    const res = await fetch(`/api/public/geocode?q=${encodeURIComponent(locationText)}`);
+    const json = await res.json();
 
-        const [categoriesRes, eventsRes] = await Promise.all([
-          fetch("/api/public/categories"),
-          fetch("/api/public/events?page=1&pageSize=12"),
-        ]);
-
-        const [categoriesJson, eventsJson] = await Promise.all([
-          categoriesRes.json(),
-          eventsRes.json(),
-        ]);
-
-        if (!mounted) return;
-
-        setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
-        setEventsData(eventsJson || { items: [] });
-      } catch (err) {
-        if (!mounted) return;
-        setError("Failed to load homepage content.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    if (!res.ok || json?.ok === false) {
+      throw new Error(json?.error || "Failed to geocode location");
     }
 
-    load();
-
-    return () => {
-      mounted = false;
+    return {
+      lat: json.lat,
+      lng: json.lng,
+      displayName: json.displayName,
     };
-  }, []);
+  }
+
+  async function handleUseMyLocation() {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported in this browser.");
+      return;
+    }
+
+    setError("");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocationMode("device");
+        setSearch((s) => ({
+          ...s,
+          lat: String(position.coords.latitude),
+          lng: String(position.coords.longitude),
+        }));
+      },
+      () => {
+        setError("Unable to get your location.");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000,
+      }
+    );
+  }
+
+  async function handleSearch(e) {
+    e.preventDefault();
+
+    try {
+      setSearching(true);
+      setError("");
+
+      let lat = search.lat;
+      let lng = search.lng;
+
+      if (search.locationText && (!lat || !lng || locationMode === "text")) {
+        const resolved = await resolveLocationTextToCoords(search.locationText);
+        lat = String(resolved.lat);
+        lng = String(resolved.lng);
+
+        setSearch((s) => ({
+          ...s,
+          lat,
+          lng,
+        }));
+      }
+
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("pageSize", "24");
+
+      if (search.q) params.set("q", search.q);
+      if (lat) params.set("lat", lat);
+      if (lng) params.set("lng", lng);
+      if (search.radiusMiles) params.set("radiusMiles", search.radiusMiles);
+
+      const res = await fetch(`/api/public/events?${params.toString()}`);
+      const json = await res.json();
+
+      setEventsData(json || { items: [] });
+    } catch (err) {
+      setError(err.message || "Failed to search events.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function handleReset() {
+    setSearch({
+      q: "",
+      locationText: "",
+      lat: "",
+      lng: "",
+      radiusMiles: "100",
+    });
+    setLocationMode("text");
+    loadDefault();
+  }
 
   return (
     <>
@@ -60,10 +159,72 @@ export default function HomePage() {
         <div style={styles.container}>
           <section style={styles.hero}>
             <p style={styles.eyebrow}>MotorXLive</p>
-            <h1 style={styles.heroTitle}>Live motorsports events and event replays.</h1>
+            <h1 style={styles.heroTitle}>Find events near you and watch them live.</h1>
             <p style={styles.heroSubtitle}>
-              Browse by category, jump into live event pages, and watch completed videos after the event ends.
+              Search by keyword, use your current location, or enter a city, state, or ZIP code to find events within a radius.
             </p>
+          </section>
+
+          <section style={styles.searchPanel}>
+            <h2 style={styles.sectionTitle}>Search Events by Location</h2>
+
+            <form onSubmit={handleSearch} style={styles.searchForm}>
+              <input
+                style={styles.input}
+                placeholder="Keyword (event, venue, city, state)"
+                value={search.q}
+                onChange={(e) => setSearch((s) => ({ ...s, q: e.target.value }))}
+              />
+
+              <input
+                style={styles.input}
+                placeholder="City, State or ZIP"
+                value={search.locationText}
+                onChange={(e) => {
+                  setLocationMode("text");
+                  setSearch((s) => ({
+                    ...s,
+                    locationText: e.target.value,
+                  }));
+                }}
+              />
+
+              <input
+                style={styles.input}
+                type="number"
+                placeholder="Radius (miles)"
+                value={search.radiusMiles}
+                onChange={(e) => setSearch((s) => ({ ...s, radiusMiles: e.target.value }))}
+              />
+
+              <div style={styles.searchActions}>
+                <button
+                  type="button"
+                  style={styles.secondaryButton}
+                  onClick={handleUseMyLocation}
+                >
+                  Use My Location
+                </button>
+
+                <button type="submit" style={styles.button}>
+                  {searching ? "Searching..." : "Search"}
+                </button>
+
+                <button
+                  type="button"
+                  style={styles.secondaryButton}
+                  onClick={handleReset}
+                >
+                  Reset
+                </button>
+              </div>
+            </form>
+
+            {(search.lat && search.lng) ? (
+              <p style={styles.locationHint}>
+                Search coordinates ready: {search.lat}, {search.lng}
+              </p>
+            ) : null}
           </section>
 
           <section style={styles.section}>
@@ -93,7 +254,7 @@ export default function HomePage() {
 
           <section style={styles.section}>
             <div style={styles.sectionHeader}>
-              <h2 style={styles.sectionTitle}>Upcoming & Featured Events</h2>
+              <h2 style={styles.sectionTitle}>Events</h2>
             </div>
 
             {loading ? (
@@ -101,11 +262,18 @@ export default function HomePage() {
             ) : error ? (
               <p style={styles.errorText}>{error}</p>
             ) : !eventsData?.items?.length ? (
-              <p style={styles.mutedText}>No events available yet.</p>
+              <p style={styles.mutedText}>No events found.</p>
             ) : (
               <div style={styles.eventGrid}>
                 {eventsData.items.map((event) => (
-                  <EventCard key={event.id} event={event} />
+                  <div key={event.id}>
+                    <EventCard event={event} />
+                    {event.distanceMiles != null ? (
+                      <p style={styles.distanceText}>
+                        {event.distanceMiles.toFixed(1)} miles away
+                      </p>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             )}
@@ -149,6 +317,48 @@ const styles = {
     lineHeight: 1.6,
     color: "#c9d1d9",
     margin: 0,
+  },
+  searchPanel: {
+    background: "#11161c",
+    border: "1px solid #1f2937",
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 10,
+  },
+  searchForm: {
+    display: "grid",
+    gridTemplateColumns: "2fr 1.4fr 180px auto",
+    gap: 12,
+    alignItems: "end",
+  },
+  input: {
+    width: "100%",
+    background: "#0f141a",
+    border: "1px solid #2a3647",
+    color: "#f5f7fa",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
+  searchActions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  button: {
+    background: "#2563eb",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "12px 14px",
+    cursor: "pointer",
+  },
+  secondaryButton: {
+    background: "#1b2a40",
+    color: "#fff",
+    border: "1px solid #31598b",
+    borderRadius: 10,
+    padding: "12px 14px",
+    cursor: "pointer",
   },
   section: {
     marginTop: 36,
@@ -194,5 +404,15 @@ const styles = {
   },
   errorText: {
     color: "#ff9b9b",
+  },
+  distanceText: {
+    marginTop: 8,
+    color: "#9aa4af",
+    fontSize: 13,
+  },
+  locationHint: {
+    marginTop: 12,
+    color: "#9aa4af",
+    fontSize: 13,
   },
 };
