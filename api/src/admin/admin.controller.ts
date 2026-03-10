@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
 import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
-import { UseGuards } from "@nestjs/common";
-import { AdminKeyGuard } from "../auth/admin-key.guard";
 import { PrismaService } from "../prisma/prisma.service";
+import { UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
 import {
   CreateCategoryDto,
   CreateEventDto,
@@ -10,7 +12,8 @@ import {
   UpdateEventDto,
 } from "./admin.dto";
 
-@UseGuards(AdminKeyGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("ADMIN")
 @Controller("admin")
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}

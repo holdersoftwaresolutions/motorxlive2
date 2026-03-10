@@ -4,6 +4,8 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { StorageModule } from "./storage/storage.module";
 import { GeocodingModule } from "./geocoding/geocoding.module";
 import { MapboxLocationModule } from "./geocoding/mapbox-location.module";
+import { AuthModule } from "./auth/auth.module";
+import { AuthController } from "./auth/auth.controller";
 
 import { PublicVideosController } from "./public/public-videos.controller";
 import { PublicCategoriesController } from "./public/public-categories.controller";
@@ -17,9 +19,16 @@ import { AdminController } from "./admin/admin.controller";
 import { StreamerController } from "./streamer/streamer.controller";
 
 @Module({
-  imports: [PrismaModule, StorageModule, GeocodingModule, MapboxLocationModule],
+  imports: [
+    PrismaModule,
+    StorageModule,
+    GeocodingModule,
+    MapboxLocationModule,
+    AuthModule,
+  ],
   controllers: [
     HealthController,
+    AuthController,
     PublicVideosController,
     PublicCategoriesController,
     PublicEventsController,

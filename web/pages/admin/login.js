@@ -3,42 +3,64 @@ import { useRouter } from "next/router";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [keyValue, setKeyValue] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setLoading(true);
 
-    if (!keyValue.trim()) {
-      setError("Enter the admin key.");
-      return;
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || "Login failed");
+      }
+
+      router.push("/admin");
+    } catch (err) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    document.cookie = `motorxlive_admin_key=${encodeURIComponent(keyValue)}; path=/; max-age=86400; samesite=lax`;
-    router.push("/admin");
   }
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <p style={styles.eyebrow}>MotorXLive Admin</p>
-        <h1 style={styles.title}>Admin Login</h1>
-        <p style={styles.text}>
-          Enter the admin key to access the admin UI.
-        </p>
+        <p style={styles.eyebrow}>MotorXLive</p>
+        <h1 style={styles.title}>Admin / Contributor Login</h1>
 
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
-            type="password"
-            placeholder="Admin key"
-            value={keyValue}
-            onChange={(e) => setKeyValue(e.target.value)}
             style={styles.input}
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
 
-          <button type="submit" style={styles.button}>
-            Enter Admin
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button type="submit" style={styles.button} disabled={loading}>
+            {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
 
@@ -75,12 +97,8 @@ const styles = {
     margin: "0 0 8px",
   },
   title: {
-    margin: "0 0 10px",
-    fontSize: 32,
-  },
-  text: {
-    margin: "0 0 18px",
-    color: "#c9d1d9",
+    margin: "0 0 16px",
+    fontSize: 30,
   },
   form: {
     display: "grid",

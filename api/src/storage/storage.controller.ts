@@ -1,7 +1,10 @@
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { IsOptional, IsString } from "class-validator";
 import { StorageService } from "./storage.service";
-import { AdminKeyGuard } from "../auth/admin-key.guard";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
+
 
 class CreateFlyerUploadDto {
   @IsString()
@@ -12,7 +15,8 @@ class CreateFlyerUploadDto {
   filename?: string;
 }
 
-@UseGuards(AdminKeyGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("ADMIN")
 @Controller("admin/uploads")
 export class StorageController {
   constructor(private readonly storage: StorageService) {}
@@ -24,4 +28,4 @@ export class StorageController {
       filename: dto.filename,
     });
   }
-}   
+}

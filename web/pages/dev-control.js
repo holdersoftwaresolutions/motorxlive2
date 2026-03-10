@@ -1,5 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 
+const isProd = process.env.NODE_ENV === "production";
+
+if (isProd) {
+  return (
+    <div style={{ padding: 32, fontFamily: "system-ui" }}>
+      <h1>Not Found</h1>
+    </div>
+  );
+}
+
+export async function getServerSideProps() {
+  if (process.env.NODE_ENV === "production") {
+    return {
+      notFound: true,
+    };
+  }
+
+  return {
+    props: {},
+  };
+}
+
 export default function DevControlPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);

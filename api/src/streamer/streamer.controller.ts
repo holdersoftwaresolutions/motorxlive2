@@ -8,20 +8,26 @@ import {
   Patch,
   Post,
   Req,
+  UseGuards,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SubmitStreamDto, UpdateSubmittedStreamDto } from "./streamer-streams.dto";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("STREAMER", "MEDIA", "ADMIN")
 @Controller("streamer")
 export class StreamerController {
   constructor(private readonly prisma: PrismaService) {}
 
   private getUserId(req: any): string | null {
-    return req?.user?.id ?? req?.headers?.["x-dev-user-id"] ?? null;
+    return req?.user?.sub ?? null;
   }
 
   private getUserRole(req: any): string | null {
-    return req?.user?.role ?? req?.headers?.["x-dev-user-role"] ?? null;
+    return req?.user?.role ?? null;
   }
 
   @Get("events/:id/streams")
@@ -33,9 +39,6 @@ export class StreamerController {
       throw new ForbiddenException("Missing user");
     }
 
-    // For now:
-    // - ADMIN can view all
-    // - STREAMER can view only their own submissions for that event
     if (role === "ADMIN") {
       return this.prisma.stream.findMany({
         where: { eventId },
@@ -73,7 +76,10 @@ export class StreamerController {
       !dto.playbackHlsUrl &&
       !dto.playbackDashUrl
     ) {
-      return { ok: false, error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS streams" };
+      return {
+        ok: false,
+        error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS streams",
+      };
     }
 
     if (dto.isPrimary) {
@@ -92,7 +98,6 @@ export class StreamerController {
         eventId,
         submittedByUserId: userId,
         needsReview: true,
-
         sourceType: dto.sourceType as any,
         provider: "custom",
         title: dto.title,
@@ -115,6 +120,7 @@ export class StreamerController {
     @Req() req: any
   ) {
     const userId = this.getUserId(req);
+    const role = this.getUserRole(req);
 
     if (!userId) {
       throw new ForbiddenException("Missing user");
@@ -127,7 +133,6 @@ export class StreamerController {
         eventId: true,
         submittedByUserId: true,
         needsReview: true,
-        lifecycle: true,
       },
     });
 
@@ -135,11 +140,11 @@ export class StreamerController {
       return { ok: false, error: "Stream not found" };
     }
 
-    if (existing.submittedByUserId !== userId) {
+    if (role !== "ADMIN" && existing.submittedByUserId !== userId) {
       throw new ForbiddenException("Not your stream");
     }
 
-    if (!existing.needsReview) {
+    if (role !== "ADMIN" && !existing.needsReview) {
       throw new ForbiddenException("Cannot edit a reviewed stream");
     }
 
@@ -147,7 +152,7 @@ export class StreamerController {
       await this.prisma.stream.updateMany({
         where: {
           eventId: existing.eventId,
-          submittedByUserId: userId,
+          submittedByUserId: existing.submittedByUserId ?? userId,
           isPrimary: true,
         },
         data: { isPrimary: false },
@@ -172,6 +177,7 @@ export class StreamerController {
   @Delete("streams/:id")
   async deleteSubmittedStream(@Param("id") id: string, @Req() req: any) {
     const userId = this.getUserId(req);
+    const role = this.getUserRole(req);
 
     if (!userId) {
       throw new ForbiddenException("Missing user");
@@ -190,11 +196,11 @@ export class StreamerController {
       return { ok: false, error: "Stream not found" };
     }
 
-    if (existing.submittedByUserId !== userId) {
+    if (role !== "ADMIN" && existing.submittedByUserId !== userId) {
       throw new ForbiddenException("Not your stream");
     }
 
-    if (!existing.needsReview) {
+    if (role !== "ADMIN" && !existing.needsReview) {
       throw new ForbiddenException("Cannot delete a reviewed stream");
     }
 
