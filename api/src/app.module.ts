@@ -16,7 +16,7 @@ import { PublicGeocodeController } from "./public/public-geocode.controller";
 import { PublicLocationController } from "./public/public-location.controller";
 
 import { AdminController } from "./admin/admin.controller";
-import { StreamerController } from "./streamer/streamer.controller";
+import { ContributorController } from "./contributor/contributor.controller";
 
 @Module({
   imports: [
@@ -37,7 +37,7 @@ import { StreamerController } from "./streamer/streamer.controller";
     PublicGeocodeController,
     PublicLocationController,
     AdminController,
-    StreamerController,
+    ContributorController,
   ],
 })
 export class AppModule {}

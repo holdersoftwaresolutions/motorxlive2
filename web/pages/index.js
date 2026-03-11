@@ -432,21 +432,21 @@ export default function HomePage() {
             </div>
 
             <div style={styles.contributorGrid}>
-              <Link href="/admin/login" style={styles.contributorCard}>
+              <Link href="/contributor/login" style={styles.contributorCard}>
                 <div style={styles.contributorTitle}>Contributor Login</div>
                 <div style={styles.contributorText}>
                   Log in to add or manage live streams and event videos.
                 </div>
               </Link>
 
-              <Link href="/admin/streams" style={styles.contributorCard}>
+              <Link href="/contributor/streams" style={styles.contributorCard}>
                 <div style={styles.contributorTitle}>Add Live Stream</div>
                 <div style={styles.contributorText}>
                   Attach livestream sources to events and manage playback details.
                 </div>
               </Link>
 
-              <Link href="/admin/videos" style={styles.contributorCard}>
+              <Link href="/contributor/videos" style={styles.contributorCard}>
                 <div style={styles.contributorTitle}>Add Video</div>
                 <div style={styles.contributorText}>
                   Publish completed videos and on-demand event content.
