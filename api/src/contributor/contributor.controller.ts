@@ -37,15 +37,34 @@ export class ContributorController {
     return req?.user?.role ?? null;
   }
 
-@Get("events")
+  @Get("events")
   async listContributorEvents() {
+    const now = new Date();
+    const recentPast = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24 hours
+
     return this.prisma.event.findMany({
+      where: {
+        OR: [
+          {
+            endAt: {
+              gte: now,
+            },
+          },
+          {
+            endAt: null,
+            startAt: {
+              gte: recentPast,
+            },
+          },
+        ],
+      },
       orderBy: [{ startAt: "asc" }, { title: "asc" }],
       select: {
         id: true,
         title: true,
         slug: true,
         startAt: true,
+        endAt: true,
         venueName: true,
         city: true,
         state: true,
