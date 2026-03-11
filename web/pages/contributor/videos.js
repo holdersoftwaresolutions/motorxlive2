@@ -25,7 +25,9 @@ export default function ContributorVideosPage({ currentUser }) {
   }
 
   async function loadEvents() {
-    const res = await fetch("/api/admin/events", { credentials: "include" });
+    const res = await fetch("/api/contributor/events", {
+      credentials: "include",
+    });
     const json = await parse(res);
     setEvents(Array.isArray(json) ? json : []);
     if (!selectedEventId && Array.isArray(json) && json.length > 0) {

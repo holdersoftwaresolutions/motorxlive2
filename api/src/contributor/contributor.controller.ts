@@ -37,6 +37,22 @@ export class ContributorController {
     return req?.user?.role ?? null;
   }
 
+@Get("events")
+  async listContributorEvents() {
+    return this.prisma.event.findMany({
+      orderBy: [{ startAt: "asc" }, { title: "asc" }],
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        startAt: true,
+        venueName: true,
+        city: true,
+        state: true,
+      },
+    });
+  }
+
   // ---------- STREAMS ----------
 
   @Get("events/:id/streams")
