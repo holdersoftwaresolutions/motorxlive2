@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
+import { requireAdminPage } from "../../lib/requireAdminPage";
 
 export default function AdminStreamsPage() {
   const [events, setEvents] = useState([]);
@@ -213,6 +214,8 @@ function StreamRow({ stream, onSave }) {
     </div>
   );
 }
+
+export const getServerSideProps = requireAdminPage;
 
 const styles = {
   grid: {

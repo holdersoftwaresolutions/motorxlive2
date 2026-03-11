@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
 import { uploadFlyer } from "../../lib/uploadFlyer";
+import { requireAdminPage } from "../../lib/requireAdminPage";
 
 export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
@@ -271,6 +272,8 @@ function EventRow({ event, categories, onSave }) {
     </div>
   );
 }
+
+export const getServerSideProps = requireAdminPage;
 
 const styles = {
   grid: {

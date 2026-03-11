@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
+import { requireAdminPage } from "../../lib/requireAdminPage";
 
 export default function AdminVideosPage() {
   const [events, setEvents] = useState([]);
@@ -200,6 +201,8 @@ function VideoRow({ video, onSave }) {
     </div>
   );
 }
+
+export const getServerSideProps = requireAdminPage;
 
 const styles = {
   grid: {

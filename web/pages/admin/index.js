@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AdminLayout from "../../components/AdminLayout";
+import { requireAdminPage } from "../../lib/requireAdminPage";
 
 export default function AdminHomePage() {
   const cards = [
@@ -47,6 +48,8 @@ export default function AdminHomePage() {
     </AdminLayout>
   );
 }
+
+export const getServerSideProps = requireAdminPage;
 
 const styles = {
   wrapper: {

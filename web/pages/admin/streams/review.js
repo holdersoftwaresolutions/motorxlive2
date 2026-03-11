@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "../../../components/AdminLayout";
 import { adminFetch } from "../../../lib/adminFetch";
+import { requireAdminPage } from "../../../lib/requireAdminPage";
 
 export default function AdminStreamReviewPage() {
   const [items, setItems] = useState([]);
@@ -253,6 +254,8 @@ export default function AdminStreamReviewPage() {
     </AdminLayout>
   );
 }
+
+export const getServerSideProps = requireAdminPage;
 
 const styles = {
   topRow: {
