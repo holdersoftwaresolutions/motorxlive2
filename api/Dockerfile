@@ -4,10 +4,10 @@ WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-COPY api/package*.json ./
+COPY package*.json ./
 RUN npm install
 
-COPY api/. .
+COPY . .
 
 RUN npx prisma generate
 RUN npm run build
@@ -20,10 +20,10 @@ ENV NODE_ENV=production
 
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-COPY api/package*.json ./
+COPY package*.json ./
 RUN npm install --omit=dev
 
-COPY api/prisma ./prisma
+COPY prisma ./prisma
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
