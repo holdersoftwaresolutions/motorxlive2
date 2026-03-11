@@ -10,23 +10,29 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  if (!pathname.startsWith("/admin")) {
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isContributorRoute = pathname.startsWith("/contributor");
+  const isLoginRoute =
+    pathname === "/admin/login" || pathname === "/contributor/login";
+
+  if (!isAdminRoute && !isContributorRoute) {
     return NextResponse.next();
   }
 
-  if (pathname === "/admin/login") {
+  if (isLoginRoute) {
     return NextResponse.next();
   }
 
   const token = request.cookies.get("motorxlive_access_token")?.value;
 
   if (!token) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
+    const loginPath = isContributorRoute ? "/contributor/login" : "/admin/login";
+    return NextResponse.redirect(new URL(loginPath, request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/dev-control"],
+  matcher: ["/admin/:path*", "/contributor/:path*", "/dev-control"],
 };

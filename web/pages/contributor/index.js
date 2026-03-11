@@ -1,11 +1,12 @@
 import Link from "next/link";
 import ContributorLayout from "../../components/ContributorLayout";
+import { requireContributorPage } from "../../lib/requireContributorPage";
 
-export default function ContributorHomePage() {
+export default function ContributorHomePage({ currentUser }) {
   return (
     <ContributorLayout title="Dashboard">
       <p style={styles.subtitle}>
-        Submit livestreams and videos for the events you are covering.
+        Signed in as <strong>{currentUser?.email}</strong>. Submit livestreams and videos for the events you are covering.
       </p>
 
       <div style={styles.grid}>
@@ -26,6 +27,8 @@ export default function ContributorHomePage() {
     </ContributorLayout>
   );
 }
+
+export const getServerSideProps = requireContributorPage;
 
 const styles = {
   subtitle: {

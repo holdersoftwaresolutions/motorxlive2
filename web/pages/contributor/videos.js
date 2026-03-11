@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import ContributorLayout from "../../components/ContributorLayout";
+import { requireContributorPage } from "../../lib/requireContributorPage";
 
-export default function ContributorVideosPage() {
+export default function ContributorVideosPage({ currentUser }) {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [message, setMessage] = useState("");
@@ -93,6 +94,10 @@ export default function ContributorVideosPage() {
 
   return (
     <ContributorLayout title="Videos">
+      <p style={styles.subtitle}>
+        Signed in as <strong>{currentUser?.email}</strong>.
+      </p>
+
       <div style={styles.panel}>
         <select
           style={styles.input}
@@ -194,7 +199,13 @@ export default function ContributorVideosPage() {
   );
 }
 
+export const getServerSideProps = requireContributorPage;
+
 const styles = {
+  subtitle: {
+    margin: "0 0 18px",
+    color: "#c9d1d9",
+  },
   panel: {
     background: "#11161c",
     border: "1px solid #1f2937",

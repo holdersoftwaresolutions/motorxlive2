@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import ContributorLayout from "../../components/ContributorLayout";
+import { requireContributorPage } from "../../lib/requireContributorPage";
 
-export default function ContributorStreamsPage() {
+export default function ContributorStreamsPage({ currentUser }) {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [message, setMessage] = useState("");
@@ -88,6 +89,10 @@ export default function ContributorStreamsPage() {
 
   return (
     <ContributorLayout title="Streams">
+      <p style={styles.subtitle}>
+        Signed in as <strong>{currentUser?.email}</strong>.
+      </p>
+
       <div style={styles.panel}>
         <select
           style={styles.input}
@@ -184,7 +189,13 @@ export default function ContributorStreamsPage() {
   );
 }
 
+export const getServerSideProps = requireContributorPage;
+
 const styles = {
+  subtitle: {
+    margin: "0 0 18px",
+    color: "#c9d1d9",
+  },
   panel: {
     background: "#11161c",
     border: "1px solid #1f2937",
