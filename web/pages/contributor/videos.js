@@ -2,6 +2,22 @@ import { useEffect, useState } from "react";
 import ContributorLayout from "../../components/ContributorLayout";
 import { requireContributorPage } from "../../lib/requireContributorPage";
 
+function formatEventOptionLabel(event) {
+  const datePart = event.startAt
+    ? new Date(event.startAt).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+      })
+    : "No date";
+
+  const locationPart =
+    event.city || event.state
+      ? [event.city, event.state].filter(Boolean).join(", ")
+      : "Location TBD";
+
+  return `${datePart} - ${locationPart} - ${event.title}`;
+}
+
 export default function ContributorVideosPage({ currentUser }) {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -109,7 +125,7 @@ export default function ContributorVideosPage({ currentUser }) {
           <option value="">Select event</option>
           {events.map((event) => (
             <option key={event.id} value={event.id}>
-              {event.title}
+              {formatEventOptionLabel(event)}
             </option>
           ))}
         </select>

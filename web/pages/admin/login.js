@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 
+function getDestinationForRole(role) {
+  if (role === "ADMIN") return "/admin";
+  if (role === "STREAMER" || role === "MEDIA") return "/contributor";
+  return "/";
+}
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -28,7 +34,8 @@ export default function AdminLoginPage() {
         throw new Error(json?.message || json?.error || "Login failed");
       }
 
-      router.push("/admin");
+      const role = json?.user?.role;
+      router.push(getDestinationForRole(role));
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
