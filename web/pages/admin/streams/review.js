@@ -3,11 +3,13 @@ import AdminLayout from "../../../components/AdminLayout";
 import { adminFetch } from "../../../lib/adminFetch";
 import { requireAdminPage } from "../../../lib/requireAdminPage";
 
-export default function AdminStreamReviewPage() {
+export default function AdminStreamReviewPage({ currentUser }) {
   const [items, setItems] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState("");
+  const [rejectingId, setRejectingId] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
 
   async function loadQueue() {
     try {
@@ -66,6 +68,10 @@ export default function AdminStreamReviewPage() {
 
       const res = await adminFetch(`/api/admin/streams/${id}/reject`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: rejectReason,
+        }),
       });
 
       const text = await res.text();
@@ -74,6 +80,8 @@ export default function AdminStreamReviewPage() {
         throw new Error(text || "Failed to reject stream");
       }
 
+      setRejectReason("");
+      setRejectingId("");
       setMessage("Stream rejected.");
       await loadQueue();
     } catch (err) {
@@ -86,9 +94,14 @@ export default function AdminStreamReviewPage() {
   return (
     <AdminLayout title="Stream Review">
       <div style={styles.topRow}>
-        <p style={styles.description}>
-          Review streamer-submitted live feeds before they appear publicly.
-        </p>
+        <div>
+          <p style={styles.description}>
+            Review streamer-submitted live feeds before they appear publicly.
+          </p>
+          <p style={styles.signedIn}>
+            Signed in as <strong>{currentUser?.email}</strong>.
+          </p>
+        </div>
 
         <button style={styles.secondaryButton} onClick={loadQueue} disabled={loading}>
           {loading ? "Refreshing..." : "Refresh Queue"}
@@ -128,8 +141,7 @@ export default function AdminStreamReviewPage() {
 
                 <div style={styles.metaBlock}>
                   <div>
-                    <strong>Event:</strong>{" "}
-                    {event.title || "Unknown event"}
+                    <strong>Event:</strong> {event.title || "Unknown event"}
                   </div>
                   {event.slug ? (
                     <div>
@@ -168,8 +180,7 @@ export default function AdminStreamReviewPage() {
                       "Unknown"}
                   </div>
                   <div>
-                    <strong>Needs Review:</strong>{" "}
-                    {item.needsReview ? "Yes" : "No"}
+                    <strong>Needs Review:</strong> {item.needsReview ? "Yes" : "No"}
                   </div>
                   <div>
                     <strong>Created At:</strong>{" "}
@@ -223,29 +234,59 @@ export default function AdminStreamReviewPage() {
                   ) : null}
                 </div>
 
-                <div style={styles.actions}>
-                  <button
-                    style={{
-                      ...styles.approveButton,
-                      ...(actingId === item.id ? styles.buttonDisabled : {}),
-                    }}
-                    onClick={() => approveStream(item.id)}
-                    disabled={actingId === item.id}
-                  >
-                    {actingId === item.id ? "Working..." : "Approve"}
-                  </button>
+                {rejectingId === item.id ? (
+                  <div style={styles.rejectBox}>
+                    <textarea
+                      style={styles.textarea}
+                      placeholder="Reason for rejection"
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                    <div style={styles.actions}>
+                      <button
+                        type="button"
+                        style={styles.rejectButton}
+                        onClick={() => rejectStream(item.id)}
+                      >
+                        Confirm Reject
+                      </button>
+                      <button
+                        type="button"
+                        style={styles.secondaryButton}
+                        onClick={() => {
+                          setRejectingId("");
+                          setRejectReason("");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={styles.actions}>
+                    <button
+                      style={{
+                        ...styles.approveButton,
+                        ...(actingId === item.id ? styles.buttonDisabled : {}),
+                      }}
+                      onClick={() => approveStream(item.id)}
+                      disabled={actingId === item.id}
+                    >
+                      {actingId === item.id ? "Working..." : "Approve"}
+                    </button>
 
-                  <button
-                    style={{
-                      ...styles.rejectButton,
-                      ...(actingId === item.id ? styles.buttonDisabled : {}),
-                    }}
-                    onClick={() => rejectStream(item.id)}
-                    disabled={actingId === item.id}
-                  >
-                    {actingId === item.id ? "Working..." : "Reject"}
-                  </button>
-                </div>
+                    <button
+                      style={{
+                        ...styles.rejectButton,
+                        ...(actingId === item.id ? styles.buttonDisabled : {}),
+                      }}
+                      onClick={() => setRejectingId(item.id)}
+                      disabled={actingId === item.id}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -270,6 +311,10 @@ const styles = {
     margin: 0,
     color: "#c9d1d9",
     lineHeight: 1.5,
+  },
+  signedIn: {
+    marginTop: 8,
+    color: "#9aa4af",
   },
   secondaryButton: {
     background: "#1b2a40",
@@ -384,5 +429,20 @@ const styles = {
   link: {
     color: "#8fb3ff",
     textDecoration: "none",
+  },
+  rejectBox: {
+    marginTop: 12,
+    display: "grid",
+    gap: 10,
+  },
+  textarea: {
+    width: "100%",
+    minHeight: 90,
+    background: "#0f141a",
+    border: "1px solid #2a3647",
+    color: "#f5f7fa",
+    borderRadius: 10,
+    padding: "12px 14px",
+    resize: "vertical",
   },
 };

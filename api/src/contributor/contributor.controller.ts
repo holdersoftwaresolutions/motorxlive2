@@ -40,7 +40,7 @@ export class ContributorController {
   @Get("events")
   async listContributorEvents() {
     const now = new Date();
-    const recentPast = new Date(now.getTime() - 24 * 60 * 60 * 1000); // last 24 hours
+    const recentPast = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     return this.prisma.event.findMany({
       where: {
@@ -142,6 +142,10 @@ export class ContributorController {
         eventId,
         submittedByUserId: userId,
         needsReview: true,
+        moderationStatus: "PENDING",
+        rejectionReason: null,
+        reviewedAt: null,
+        reviewedByUserId: null,
         sourceType: dto.sourceType as any,
         provider: "custom",
         title: dto.title,
@@ -176,7 +180,7 @@ export class ContributorController {
         id: true,
         eventId: true,
         submittedByUserId: true,
-        needsReview: true,
+        moderationStatus: true,
       },
     });
 
@@ -188,8 +192,8 @@ export class ContributorController {
       throw new ForbiddenException("Not your stream");
     }
 
-    if (role !== "ADMIN" && !existing.needsReview) {
-      throw new ForbiddenException("Cannot edit a reviewed stream");
+    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
+      throw new ForbiddenException("Cannot edit an approved stream");
     }
 
     if (dto.isPrimary) {
@@ -212,6 +216,11 @@ export class ContributorController {
         ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
         ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
         ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        needsReview: true,
+        moderationStatus: "PENDING",
+        rejectionReason: null,
+        reviewedAt: null,
+        reviewedByUserId: null,
       },
     });
 
@@ -232,7 +241,7 @@ export class ContributorController {
       select: {
         id: true,
         submittedByUserId: true,
-        needsReview: true,
+        moderationStatus: true,
       },
     });
 
@@ -244,8 +253,8 @@ export class ContributorController {
       throw new ForbiddenException("Not your stream");
     }
 
-    if (role !== "ADMIN" && !existing.needsReview) {
-      throw new ForbiddenException("Cannot delete a reviewed stream");
+    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
+      throw new ForbiddenException("Cannot delete an approved stream");
     }
 
     await this.prisma.stream.delete({
@@ -314,6 +323,10 @@ export class ContributorController {
         eventId,
         submittedByUserId: userId,
         needsReview: true,
+        moderationStatus: "PENDING",
+        rejectionReason: null,
+        reviewedAt: null,
+        reviewedByUserId: null,
         sourceType: dto.sourceType as any,
         provider: "custom",
         title: dto.title,
@@ -348,7 +361,7 @@ export class ContributorController {
       select: {
         id: true,
         submittedByUserId: true,
-        needsReview: true,
+        moderationStatus: true,
       },
     });
 
@@ -360,8 +373,8 @@ export class ContributorController {
       throw new ForbiddenException("Not your video");
     }
 
-    if (role !== "ADMIN" && !existing.needsReview) {
-      throw new ForbiddenException("Cannot edit a reviewed video");
+    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
+      throw new ForbiddenException("Cannot edit an approved video");
     }
 
     const updated = await this.prisma.video.update({
@@ -376,6 +389,11 @@ export class ContributorController {
         ...(dto.publishedAt !== undefined
           ? { publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null }
           : {}),
+        needsReview: true,
+        moderationStatus: "PENDING",
+        rejectionReason: null,
+        reviewedAt: null,
+        reviewedByUserId: null,
       },
     });
 
@@ -396,7 +414,7 @@ export class ContributorController {
       select: {
         id: true,
         submittedByUserId: true,
-        needsReview: true,
+        moderationStatus: true,
       },
     });
 
@@ -408,8 +426,8 @@ export class ContributorController {
       throw new ForbiddenException("Not your video");
     }
 
-    if (role !== "ADMIN" && !existing.needsReview) {
-      throw new ForbiddenException("Cannot delete a reviewed video");
+    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
+      throw new ForbiddenException("Cannot delete an approved video");
     }
 
     await this.prisma.video.delete({

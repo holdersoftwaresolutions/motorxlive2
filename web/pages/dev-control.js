@@ -12,6 +12,14 @@ export async function getServerSideProps() {
   };
 }
 
+if (process.env.NODE_ENV === "production") {
+  return (
+    <div style={{padding:40}}>
+      <h1>Not Found</h1>
+    </div>
+  )
+}
+
 export default function DevControlPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);

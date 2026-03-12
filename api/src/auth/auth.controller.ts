@@ -12,6 +12,7 @@ import { Response } from "express";
 import { LoginDto } from "./auth.dto";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
+import { RolesGuard } from "./roles.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -91,7 +92,7 @@ export class AuthController {
     return { ok: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get("me")
   async me(@Req() req: any) {
     return {

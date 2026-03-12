@@ -3,11 +3,9 @@ import ContributorLayout from "../../components/ContributorLayout";
 import { requireContributorPage } from "../../lib/requireContributorPage";
 
 function getVideoStatusLabel(video) {
-  if (video?.needsReview) return "Pending Review";
-  if (video?.status === "READY") return "Approved / Ready";
-  if (video?.status === "FAILED") return "Failed";
-  if (video?.status === "DISABLED") return "Disabled";
-  return "Reviewed";
+  if (video?.moderationStatus === "REJECTED") return "Rejected";
+  if (video?.moderationStatus === "APPROVED") return "Approved";
+  return "Pending Review";
 }
 
 function formatEventOptionLabel(event) {
@@ -152,7 +150,7 @@ export default function ContributorVideosPage({ currentUser }) {
   }
 
   async function handleDelete(videoId) {
-    const confirmed = window.confirm("Delete this pending video submission?");
+    const confirmed = window.confirm("Delete this pending or rejected video submission?");
     if (!confirmed) return;
 
     setBusyId(videoId);
@@ -288,7 +286,7 @@ export default function ContributorVideosPage({ currentUser }) {
         ) : (
           <div style={styles.list}>
             {myVideos.map((video) => {
-              const locked = !video.needsReview;
+              const locked = video.moderationStatus === "APPROVED";
 
               return (
                 <div key={video.id} style={styles.card}>
@@ -301,7 +299,11 @@ export default function ContributorVideosPage({ currentUser }) {
                     <span
                       style={{
                         ...styles.badge,
-                        ...(video.needsReview ? styles.badgePending : styles.badgeApproved),
+                        ...(video.moderationStatus === "REJECTED"
+                          ? styles.badgeRejected
+                          : video.moderationStatus === "APPROVED"
+                          ? styles.badgeApproved
+                          : styles.badgePending),
                       }}
                     >
                       {getVideoStatusLabel(video)}
@@ -315,6 +317,12 @@ export default function ContributorVideosPage({ currentUser }) {
                     {video.playbackDashUrl ? <div>DASH attached</div> : null}
                     {video.durationSeconds ? <div>Duration: {video.durationSeconds}s</div> : null}
                   </div>
+
+                  {video.moderationStatus === "REJECTED" && video.rejectionReason ? (
+                    <div style={styles.rejectionBox}>
+                      <strong>Rejection reason:</strong> {video.rejectionReason}
+                    </div>
+                  ) : null}
 
                   <div style={styles.actions}>
                     <button
@@ -344,7 +352,7 @@ export default function ContributorVideosPage({ currentUser }) {
 
                   {locked ? (
                     <p style={styles.lockedText}>
-                      This video has already been reviewed and can no longer be edited here.
+                      This video has been approved and can no longer be edited here.
                     </p>
                   ) : null}
                 </div>
@@ -492,6 +500,20 @@ const styles = {
     background: "#163222",
     color: "#9fe3b4",
     border: "1px solid #28563a",
+  },
+  badgeRejected: {
+    background: "#3a1616",
+    color: "#ffd3d3",
+    border: "1px solid #7a2d2d",
+  },
+  rejectionBox: {
+    marginTop: 12,
+    background: "#3a1616",
+    border: "1px solid #7a2d2d",
+    color: "#ffd3d3",
+    borderRadius: 10,
+    padding: "10px 12px",
+    fontSize: 14,
   },
   lockedText: {
     marginTop: 12,

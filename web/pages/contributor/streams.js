@@ -3,12 +3,12 @@ import ContributorLayout from "../../components/ContributorLayout";
 import { requireContributorPage } from "../../lib/requireContributorPage";
 
 function getStatusLabel(stream) {
-  if (stream?.needsReview) return "Pending Review";
-  if (stream?.lifecycle === "LIVE") return "Approved / Live";
-  if (stream?.lifecycle === "READY") return "Approved / Ready";
-  if (stream?.lifecycle === "DISABLED") return "Disabled";
-  if (stream?.lifecycle === "ERROR") return "Error";
-  return "Reviewed";
+  if (stream?.moderationStatus === "REJECTED") return "Rejected";
+  if (stream?.moderationStatus === "APPROVED") {
+    if (stream?.lifecycle === "LIVE") return "Approved / Live";
+    return "Approved";
+  }
+  return "Pending Review";
 }
 
 function formatEventOptionLabel(event) {
@@ -138,7 +138,7 @@ export default function ContributorStreamsPage({ currentUser }) {
   }
 
   async function handleDelete(streamId) {
-    const confirmed = window.confirm("Delete this pending stream submission?");
+    const confirmed = window.confirm("Delete this pending or rejected stream submission?");
     if (!confirmed) return;
 
     setBusyId(streamId);
@@ -269,7 +269,7 @@ export default function ContributorStreamsPage({ currentUser }) {
         ) : (
           <div style={styles.list}>
             {myStreams.map((stream) => {
-              const locked = !stream.needsReview;
+              const locked = stream.moderationStatus === "APPROVED";
 
               return (
                 <div key={stream.id} style={styles.card}>
@@ -284,7 +284,11 @@ export default function ContributorStreamsPage({ currentUser }) {
                     <span
                       style={{
                         ...styles.badge,
-                        ...(stream.needsReview ? styles.badgePending : styles.badgeApproved),
+                        ...(stream.moderationStatus === "REJECTED"
+                          ? styles.badgeRejected
+                          : stream.moderationStatus === "APPROVED"
+                          ? styles.badgeApproved
+                          : styles.badgePending),
                       }}
                     >
                       {getStatusLabel(stream)}
@@ -298,6 +302,12 @@ export default function ContributorStreamsPage({ currentUser }) {
                     <div>Priority: {stream.priority ?? 0}</div>
                     <div>Primary: {stream.isPrimary ? "Yes" : "No"}</div>
                   </div>
+
+                  {stream.moderationStatus === "REJECTED" && stream.rejectionReason ? (
+                    <div style={styles.rejectionBox}>
+                      <strong>Rejection reason:</strong> {stream.rejectionReason}
+                    </div>
+                  ) : null}
 
                   <div style={styles.actions}>
                     <button
@@ -327,7 +337,7 @@ export default function ContributorStreamsPage({ currentUser }) {
 
                   {locked ? (
                     <p style={styles.lockedText}>
-                      This stream has already been reviewed and can no longer be edited here.
+                      This stream has been approved and can no longer be edited here.
                     </p>
                   ) : null}
                 </div>
@@ -470,6 +480,20 @@ const styles = {
     background: "#163222",
     color: "#9fe3b4",
     border: "1px solid #28563a",
+  },
+  badgeRejected: {
+    background: "#3a1616",
+    color: "#ffd3d3",
+    border: "1px solid #7a2d2d",
+  },
+  rejectionBox: {
+    marginTop: 12,
+    background: "#3a1616",
+    border: "1px solid #7a2d2d",
+    color: "#ffd3d3",
+    borderRadius: 10,
+    padding: "10px 12px",
+    fontSize: 14,
   },
   lockedText: {
     marginTop: 12,

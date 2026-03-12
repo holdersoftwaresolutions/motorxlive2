@@ -29,7 +29,7 @@ export class PublicEventLiveController {
     const streams = await this.prisma.stream.findMany({
       where: {
         eventId: event.id,
-        needsReview: false,
+        moderationStatus: "APPROVED",
         lifecycle: {
           in: ["READY", "LIVE"],
         },

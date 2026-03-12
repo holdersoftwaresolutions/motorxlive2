@@ -160,7 +160,7 @@ export default function EventWatchPage({ event, liveData }) {
   return (
     <>
       <Head>
-        <title>{event.title} | MotorXLive</title>
+        <title>{`${event?.title || "Event"} | MotorXLive`}</title>
         <meta
           name="description"
           content={event.description || `Watch ${event.title} live on MotorXLive.`}

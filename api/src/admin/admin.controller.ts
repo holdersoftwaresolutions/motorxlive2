@@ -5,6 +5,8 @@ import { UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
+import { RejectSubmissionDto } from "./admin-review.dto";
+import { Req } from "@nestjs/common";
 import {
   CreateCategoryDto,
   CreateEventDto,
@@ -136,8 +138,50 @@ export class AdminController {
   }
 
     // -----------------------------
-  // Streams
+  // Streams and videos
   // -----------------------------
+  @Post("videos/:id/reject")
+  async rejectVideo(
+    @Param("id") id: string,
+    @Body() dto: RejectSubmissionDto,
+    @Req() req: any
+  ) {
+    const reviewedByUserId = req?.user?.sub ?? null;
+
+    const updated = await this.prisma.video.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        moderationStatus: "REJECTED",
+        rejectionReason: dto.reason || "Rejected by admin",
+        reviewedAt: new Date(),
+        reviewedByUserId,
+        status: "DISABLED",
+      },
+    });
+
+    return { ok: true, video: updated };
+  }
+
+  @Post("videos/:id/approve")
+  async approveVideo(@Param("id") id: string, @Req() req: any) {
+    const reviewedByUserId = req?.user?.sub ?? null;
+
+    const updated = await this.prisma.video.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        moderationStatus: "APPROVED",
+        rejectionReason: null,
+        reviewedAt: new Date(),
+        reviewedByUserId,
+        status: "READY",
+      },
+    });
+
+    return { ok: true, video: updated };
+  }
+
 
     @Get("streams/review-queue")
   async listStreamsForReview() {
@@ -158,20 +202,17 @@ export class AdminController {
   }
 
   @Post("streams/:id/approve")
-  async approveStream(@Param("id") id: string) {
-    const existing = await this.prisma.stream.findUnique({
-      where: { id },
-      select: { id: true, needsReview: true },
-    });
-
-    if (!existing) {
-      return { ok: false, error: "Stream not found" };
-    }
+  async approveStream(@Param("id") id: string, @Req() req: any) {
+    const reviewedByUserId = req?.user?.sub ?? null;
 
     const updated = await this.prisma.stream.update({
       where: { id },
       data: {
         needsReview: false,
+        moderationStatus: "APPROVED",
+        rejectionReason: null,
+        reviewedAt: new Date(),
+        reviewedByUserId,
         lifecycle: "READY",
       },
     });
@@ -179,21 +220,22 @@ export class AdminController {
     return { ok: true, stream: updated };
   }
 
-  @Post("streams/:id/reject")
-  async rejectStream(@Param("id") id: string) {
-    const existing = await this.prisma.stream.findUnique({
-      where: { id },
-      select: { id: true, needsReview: true },
-    });
-
-    if (!existing) {
-      return { ok: false, error: "Stream not found" };
-    }
+   @Post("streams/:id/reject")
+  async rejectStream(
+    @Param("id") id: string,
+    @Body() dto: RejectSubmissionDto,
+    @Req() req: any
+  ) {
+    const reviewedByUserId = req?.user?.sub ?? null;
 
     const updated = await this.prisma.stream.update({
       where: { id },
       data: {
         needsReview: false,
+        moderationStatus: "REJECTED",
+        rejectionReason: dto.reason || "Rejected by admin",
+        reviewedAt: new Date(),
+        reviewedByUserId,
         lifecycle: "DISABLED",
       },
     });

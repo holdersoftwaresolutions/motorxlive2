@@ -1,6 +1,5 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { VideoStatus } from "@prisma/client";
 
 @Controller()
 export class PublicVideosController {
@@ -8,42 +7,121 @@ export class PublicVideosController {
 
   @Get("public/videos")
   async listVideos(
-    @Query("category") categorySlug?: string,
-    @Query("q") q?: string,
-    @Query("page") pageStr?: string,
-    @Query("pageSize") pageSizeStr?: string,
-    @Query("sort") sort?: "newest" | "oldest"
+    @Query("page") page = "1",
+    @Query("pageSize") pageSize = "24",
+    @Query("q") q?: string
   ) {
-    const page = Math.max(1, Number(pageStr || 1));
-    const pageSize = Math.max(1, Math.min(100, Number(pageSizeStr || 24)));
-    const skip = (page - 1) * pageSize;
-    const orderBy = sort === "oldest" ? [{ publishedAt: "asc" as const }] : [{ publishedAt: "desc" as const }];
+    const pageNum = Math.max(1, Number(page) || 1);
+    const sizeNum = Math.min(100, Math.max(1, Number(pageSize) || 24));
+    const skip = (pageNum - 1) * sizeNum;
 
-    const where: any = {
-      status: VideoStatus.READY,
-      publishedAt: { not: null },
-      needsReview: false,
-      event: { category: categorySlug ? { slug: categorySlug } : undefined },
-      OR: q
-        ? [
-            { title: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
-            { event: { title: { contains: q, mode: "insensitive" } } },
-          ]
-        : undefined,
+    const where = {
+      moderationStatus: "APPROVED" as const,
+      status: "READY" as const,
+      ...(q?.trim()
+        ? {
+            OR: [
+              { title: { contains: q.trim(), mode: "insensitive" as const } },
+              {
+                description: {
+                  contains: q.trim(),
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                event: {
+                  title: {
+                    contains: q.trim(),
+                    mode: "insensitive" as const,
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     };
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.video.findMany({
         where,
-        orderBy,
         skip,
-        take: pageSize,
-        include: { event: { include: { category: true } } },
+        take: sizeNum,
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          event: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+            },
+          },
+        },
       }),
       this.prisma.video.count({ where }),
     ]);
 
-    return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+    return {
+      items,
+      page: pageNum,
+      pageSize: sizeNum,
+      total,
+      totalPages: Math.ceil(total / sizeNum),
+    };
+  }
+
+  @Get("public/events/:slug/videos")
+  async listEventVideos(@Param("slug") slug: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+      },
+    });
+
+    if (!event) {
+      return {
+        ok: false,
+        error: "Event not found",
+        eventId: null,
+        eventSlug: slug,
+        eventTitle: null,
+        videos: [],
+      };
+    }
+
+    const videos = await this.prisma.video.findMany({
+      where: {
+        eventId: event.id,
+        moderationStatus: "APPROVED",
+        status: "READY",
+      },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        eventId: true,
+        title: true,
+        description: true,
+        sourceType: true,
+        provider: true,
+        playbackHlsUrl: true,
+        playbackDashUrl: true,
+        youtubeVideoId: true,
+        durationSeconds: true,
+        status: true,
+        publishedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      ok: true,
+      eventId: event.id,
+      eventSlug: event.slug,
+      eventTitle: event.title,
+      videos,
+    };
   }
 }
