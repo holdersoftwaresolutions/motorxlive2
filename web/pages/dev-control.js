@@ -12,14 +12,6 @@ export async function getServerSideProps() {
   };
 }
 
-if (process.env.NODE_ENV === "production") {
-  return (
-    <div style={{padding:40}}>
-      <h1>Not Found</h1>
-    </div>
-  )
-}
-
 export default function DevControlPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);
@@ -29,47 +21,9 @@ export default function DevControlPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedEventId, setSelectedEventId] = useState("");
 
-  const [eventForm, setEventForm] = useState({
-    title: "Spring Drag Classic",
-    slug: "spring-drag-classic",
-    description: "Weekend drag racing event",
-    startAt: "2026-03-20T18:00",
-    endAt: "2026-03-22T03:00",
-    venueName: "Example Motorsports Park",
-    addressLine1: "123 Track Lane",
-    city: "Huntsville",
-    state: "AL",
-    postalCode: "35801",
-    country: "US",
-    latitude: "34.7304",
-    longitude: "-86.5861",
-    heroImageUrl: "",
-  });
-
-  const [streamForm, setStreamForm] = useState({
-    sourceType: "YOUTUBE",
-    provider: "custom",
-    title: "Main Live Feed",
-    isPrimary: true,
-    priority: 0,
-    youtubeVideoId: "dQw4w9WgXcQ",
-    playbackHlsUrl: "",
-    playbackDashUrl: "",
-    lifecycle: "LIVE",
-  });
-
-  const [videoForm, setVideoForm] = useState({
-    sourceType: "YOUTUBE",
-    provider: "custom",
-    title: "Feature Replay",
-    description: "Replay of the feature event",
-    youtubeVideoId: "dQw4w9WgXcQ",
-    playbackHlsUrl: "",
-    playbackDashUrl: "",
-    durationSeconds: "600",
-    status: "READY",
-    publishedAt: "2026-03-22T10:00",
-  });
+  const selectedEvent = useMemo(() => {
+    return events.find((e) => e.id === selectedEventId) || null;
+  }, [events, selectedEventId]);
 
   async function parseResponse(res) {
     const text = await res.text();
@@ -131,31 +85,29 @@ export default function DevControlPage() {
     loadData();
   }, []);
 
-  const selectedEvent = useMemo(() => {
-    return events.find((e) => e.id === selectedEventId) || null;
-  }, [events, selectedEventId]);
-
   return (
     <div style={styles.page}>
       <div style={styles.container}>
         <div style={styles.header}>
-          <div>
-            <p style={styles.eyebrow}>MotorXLive</p>
-            <h1 style={styles.title}>Dev Control Panel</h1>
-            <p style={styles.subtitle}>
-              Quickly seed categories, events, streams, videos, and test location-aware content.
-            </p>
-          </div>
+          <p style={styles.eyebrow}>MotorXLive</p>
+          <h1 style={styles.title}>Dev Control Panel</h1>
+          <p style={styles.subtitle}>
+            Development-only page for seeding and testing.
+          </p>
         </div>
 
         {message ? <div style={styles.message}>{message}</div> : null}
 
-        {selectedEvent ? (
-          <div style={styles.selectedBox}>
-            <div><strong>Selected Event:</strong> {selectedEvent.title}</div>
-            <div><strong>Slug:</strong> {selectedEvent.slug}</div>
-          </div>
-        ) : null}
+        <div style={styles.card}>
+          <div><strong>Categories:</strong> {categories.length}</div>
+          <div><strong>Events:</strong> {events.length}</div>
+          <div><strong>Selected Category:</strong> {selectedCategoryId || "None"}</div>
+          <div><strong>Selected Event:</strong> {selectedEvent?.title || "None"}</div>
+        </div>
+
+        <button style={styles.button} onClick={loadData} disabled={loading}>
+          {loading ? "Refreshing..." : "Reload Data"}
+        </button>
       </div>
     </div>
   );
@@ -169,7 +121,7 @@ const styles = {
     fontFamily: "system-ui",
   },
   container: {
-    maxWidth: 1280,
+    maxWidth: 1100,
     margin: "0 auto",
     padding: "32px 20px 60px",
   },
@@ -189,9 +141,6 @@ const styles = {
     margin: "0 0 12px",
   },
   subtitle: {
-    maxWidth: 850,
-    fontSize: 16,
-    lineHeight: 1.6,
     color: "#c9d1d9",
     margin: 0,
   },
@@ -203,15 +152,21 @@ const styles = {
     borderRadius: 12,
     padding: "12px 14px",
   },
-  selectedBox: {
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    background: "#0f141a",
-    border: "1px solid #243041",
+  card: {
+    background: "#11161c",
+    border: "1px solid #1f2937",
+    borderRadius: 14,
+    padding: 18,
     display: "grid",
     gap: 8,
-    color: "#c9d1d9",
-    fontSize: 14,
+    marginBottom: 16,
+  },
+  button: {
+    background: "#2563eb",
+    color: "#fff",
+    border: 0,
+    borderRadius: 10,
+    padding: "12px 14px",
+    cursor: "pointer",
   },
 };
