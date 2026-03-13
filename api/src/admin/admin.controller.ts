@@ -1,18 +1,25 @@
-import { Body, Controller, Get, Param, Patch, Post } from "@nestjs/common";
-import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { UseGuards } from "@nestjs/common";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { RolesGuard } from "../auth/roles.guard";
-import { Roles } from "../auth/roles.decorator";
-import { RejectSubmissionDto } from "./admin-review.dto";
-import { Req } from "@nestjs/common";
 import {
   CreateCategoryDto,
   CreateEventDto,
   UpdateCategoryDto,
   UpdateEventDto,
 } from "./admin.dto";
+import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
+import { RejectSubmissionDto } from "./admin-review.dto";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { RolesGuard } from "../auth/roles.guard";
+import { Roles } from "../auth/roles.decorator";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
@@ -20,9 +27,7 @@ import {
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
 
-  // -----------------------------
-  // Categories
-  // -----------------------------
+  // ---------- CATEGORIES ----------
 
   @Get("categories")
   async listCategories() {
@@ -43,10 +48,7 @@ export class AdminController {
   }
 
   @Patch("categories/:id")
-  async updateCategory(
-    @Param("id") id: string,
-    @Body() dto: UpdateCategoryDto
-  ) {
+  async updateCategory(@Param("id") id: string, @Body() dto: UpdateCategoryDto) {
     return this.prisma.category.update({
       where: { id },
       data: {
@@ -57,9 +59,7 @@ export class AdminController {
     });
   }
 
-  // -----------------------------
-  // Events
-  // -----------------------------
+  // ---------- EVENTS ----------
 
   @Get("events")
   async listEvents() {
@@ -85,14 +85,13 @@ export class AdminController {
   @Post("events")
   async createEvent(@Body() dto: CreateEventDto) {
     return this.prisma.event.create({
-        data: {
+      data: {
+        categoryId: dto.categoryId,
         title: dto.title,
         slug: dto.slug,
         description: dto.description,
-        startAt: dto.startAt ? new Date(dto.startAt) : undefined,
-        endAt: dto.endAt ? new Date(dto.endAt) : undefined,
-        heroImageUrl: dto.heroImageUrl,
-
+        startAt: dto.startAt ? new Date(dto.startAt) : null,
+        endAt: dto.endAt ? new Date(dto.endAt) : null,
         venueName: dto.venueName,
         addressLine1: dto.addressLine1,
         city: dto.city,
@@ -101,11 +100,7 @@ export class AdminController {
         country: dto.country,
         latitude: dto.latitude,
         longitude: dto.longitude,
-
-        categoryId: dto.categoryId,
-      },
-      include: {
-        category: true,
+        heroImageUrl: dto.heroImageUrl,
       },
     });
   }
@@ -115,13 +110,16 @@ export class AdminController {
     return this.prisma.event.update({
       where: { id },
       data: {
+        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
         ...(dto.title !== undefined ? { title: dto.title } : {}),
         ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.startAt !== undefined ? { startAt: dto.startAt ? new Date(dto.startAt) : null } : {}),
-        ...(dto.endAt !== undefined ? { endAt: dto.endAt ? new Date(dto.endAt) : null } : {}),
-        ...(dto.heroImageUrl !== undefined ? { heroImageUrl: dto.heroImageUrl } : {}),
-        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+        ...(dto.startAt !== undefined
+          ? { startAt: dto.startAt ? new Date(dto.startAt) : null }
+          : {}),
+        ...(dto.endAt !== undefined
+          ? { endAt: dto.endAt ? new Date(dto.endAt) : null }
+          : {}),
         ...(dto.venueName !== undefined ? { venueName: dto.venueName } : {}),
         ...(dto.addressLine1 !== undefined ? { addressLine1: dto.addressLine1 } : {}),
         ...(dto.city !== undefined ? { city: dto.city } : {}),
@@ -130,64 +128,56 @@ export class AdminController {
         ...(dto.country !== undefined ? { country: dto.country } : {}),
         ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
         ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
-      },
-      include: {
-        category: true,
+        ...(dto.heroImageUrl !== undefined ? { heroImageUrl: dto.heroImageUrl } : {}),
       },
     });
   }
 
-    // -----------------------------
-  // Streams and videos
-  // -----------------------------
-  @Post("videos/:id/reject")
-  async rejectVideo(
-    @Param("id") id: string,
-    @Body() dto: RejectSubmissionDto,
-    @Req() req: any
-  ) {
-    const reviewedByUserId = req?.user?.sub ?? null;
+  // ---------- STREAMS ----------
 
-    const updated = await this.prisma.video.update({
-      where: { id },
+  @Post("events/:id/streams")
+  async createStream(@Param("id") eventId: string, @Body() dto: CreateStreamDto) {
+    return this.prisma.stream.create({
       data: {
-        needsReview: false,
-        moderationStatus: "REJECTED",
-        rejectionReason: dto.reason || "Rejected by admin",
-        reviewedAt: new Date(),
-        reviewedByUserId,
-        status: "DISABLED",
-      },
-    });
-
-    return { ok: true, video: updated };
-  }
-
-  @Post("videos/:id/approve")
-  async approveVideo(@Param("id") id: string, @Req() req: any) {
-    const reviewedByUserId = req?.user?.sub ?? null;
-
-    const updated = await this.prisma.video.update({
-      where: { id },
-      data: {
+        eventId,
         needsReview: false,
         moderationStatus: "APPROVED",
         rejectionReason: null,
         reviewedAt: new Date(),
-        reviewedByUserId,
-        status: "READY",
+        sourceType: dto.sourceType as any,
+        provider: dto.provider || "custom",
+        title: dto.title,
+        isPrimary: dto.isPrimary ?? false,
+        priority: dto.priority ?? 0,
+        playbackHlsUrl: dto.playbackHlsUrl,
+        playbackDashUrl: dto.playbackDashUrl,
+        youtubeVideoId: dto.youtubeVideoId,
+        lifecycle: dto.lifecycle as any,
       },
     });
-
-    return { ok: true, video: updated };
   }
 
+  @Patch("streams/:id")
+  async updateStream(@Param("id") id: string, @Body() dto: UpdateStreamDto) {
+    return this.prisma.stream.update({
+      where: { id },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
+        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
+        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        ...(dto.lifecycle !== undefined ? { lifecycle: dto.lifecycle as any } : {}),
+      },
+    });
+  }
 
-    @Get("streams/review-queue")
-  async listStreamsForReview() {
+  @Get("streams/review-queue")
+  async getStreamReviewQueue() {
     return this.prisma.stream.findMany({
       where: {
-        needsReview: true,
+        moderationStatus: "PENDING",
       },
       orderBy: [{ createdAt: "asc" }],
       include: {
@@ -220,7 +210,7 @@ export class AdminController {
     return { ok: true, stream: updated };
   }
 
-   @Post("streams/:id/reject")
+  @Post("streams/:id/reject")
   async rejectStream(
     @Param("id") id: string,
     @Body() dto: RejectSubmissionDto,
@@ -243,91 +233,117 @@ export class AdminController {
     return { ok: true, stream: updated };
   }
 
-  @Get("events/:id/streams")
-  async listEventStreams(@Param("id") eventId: string) {
-    return this.prisma.stream.findMany({
-      where: { eventId },
-      orderBy: [{ isPrimary: "desc" }, { priority: "asc" }, { createdAt: "asc" }],
+  // ---------- VIDEOS ----------
+
+  @Get("videos")
+  async listVideos() {
+    return this.prisma.video.findMany({
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      include: {
+        event: true,
+      },
     });
   }
 
-  @Post("events/:id/streams")
-  async createStream(
-    @Param("id") eventId: string,
-    @Body() dto: CreateStreamDto
-  ) {
-    if (
-      dto.sourceType === "YOUTUBE" &&
-      !dto.youtubeVideoId
-    ) {
-      return { ok: false, error: "youtubeVideoId is required for YOUTUBE streams" };
-    }
-
-    if (
-      dto.sourceType === "EXTERNAL_HLS" &&
-      !dto.playbackHlsUrl &&
-      !dto.playbackDashUrl
-    ) {
-      return { ok: false, error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS streams" };
-    }
-
-    if (dto.isPrimary) {
-      await this.prisma.stream.updateMany({
-        where: { eventId, isPrimary: true },
-        data: { isPrimary: false },
-      });
-    }
-
-    return this.prisma.stream.create({
+  @Post("events/:id/videos")
+  async createVideo(@Param("id") eventId: string, @Body() dto: any) {
+    return this.prisma.video.create({
       data: {
         eventId,
+        needsReview: false,
+        moderationStatus: "APPROVED",
+        rejectionReason: null,
+        reviewedAt: new Date(),
         sourceType: dto.sourceType as any,
-        provider: dto.provider ?? "custom",
+        provider: dto.provider || "custom",
         title: dto.title,
-        isPrimary: dto.isPrimary ?? false,
-        priority: dto.priority ?? 0,
+        description: dto.description,
         playbackHlsUrl: dto.playbackHlsUrl,
         playbackDashUrl: dto.playbackDashUrl,
         youtubeVideoId: dto.youtubeVideoId,
-        lifecycle: (dto.lifecycle as any) ?? "CREATED",
+        durationSeconds: dto.durationSeconds,
+        publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
+        status: dto.status || "READY",
       },
     });
   }
 
-  @Patch("streams/:id")
-  async updateStream(
-    @Param("id") id: string,
-    @Body() dto: UpdateStreamDto
-  ) {
-    const existing = await this.prisma.stream.findUnique({
-      where: { id },
-      select: { id: true, eventId: true },
-    });
-
-    if (!existing) {
-      return { ok: false, error: "Stream not found" };
-    }
-
-    if (dto.isPrimary) {
-      await this.prisma.stream.updateMany({
-        where: { eventId: existing.eventId, isPrimary: true },
-        data: { isPrimary: false },
-      });
-    }
-
-    return this.prisma.stream.update({
+  @Patch("videos/:id")
+  async updateVideo(@Param("id") id: string, @Body() dto: any) {
+    return this.prisma.video.update({
       where: { id },
       data: {
-        ...(dto.sourceType !== undefined ? { sourceType: dto.sourceType as any } : {}),
-        ...(dto.provider !== undefined ? { provider: dto.provider } : {}),
         ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
-        ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
         ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
         ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
-        ...(dto.lifecycle !== undefined ? { lifecycle: dto.lifecycle as any } : {}),
+        ...(dto.durationSeconds !== undefined ? { durationSeconds: dto.durationSeconds } : {}),
+        ...(dto.publishedAt !== undefined
+          ? { publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null }
+          : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
       },
     });
+  }
+
+  @Get("videos/review-queue")
+  async getVideoReviewQueue() {
+    return this.prisma.video.findMany({
+      where: {
+        moderationStatus: "PENDING",
+      },
+      orderBy: [{ createdAt: "asc" }],
+      include: {
+        event: {
+          include: {
+            category: true,
+          },
+        },
+        submittedBy: true,
+      },
+    });
+  }
+
+  @Post("videos/:id/approve")
+  async approveVideo(@Param("id") id: string, @Req() req: any) {
+    const reviewedByUserId = req?.user?.sub ?? null;
+
+    const updated = await this.prisma.video.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        moderationStatus: "APPROVED",
+        rejectionReason: null,
+        reviewedAt: new Date(),
+        reviewedByUserId,
+        status: "READY",
+      },
+    });
+
+    return { ok: true, video: updated };
+  }
+
+  @Post("videos/:id/reject")
+  async rejectVideo(
+    @Param("id") id: string,
+    @Body() dto: RejectSubmissionDto,
+    @Req() req: any
+  ) {
+    const reviewedByUserId = req?.user?.sub ?? null;
+
+    const updated = await this.prisma.video.update({
+      where: { id },
+      data: {
+        needsReview: false,
+        moderationStatus: "REJECTED",
+        rejectionReason: dto.reason || "Rejected by admin",
+        reviewedAt: new Date(),
+        reviewedByUserId,
+        status: "DISABLED",
+      },
+    });
+
+    return { ok: true, video: updated };
   }
 }

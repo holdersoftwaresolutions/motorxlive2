@@ -2,7 +2,7 @@ import Link from "next/link";
 import AdminLayout from "../../components/AdminLayout";
 import { requireAdminPage } from "../../lib/requireAdminPage";
 
-export default function AdminHomePage() {
+export default function AdminHomePage({ currentUser }) {
   const cards = [
     {
       href: "/admin/categories",
@@ -29,13 +29,20 @@ export default function AdminHomePage() {
       title: "Stream Review",
       description: "Approve or reject streamer-submitted livestreams.",
     },
+    {
+      href: "/admin/videos/review",
+      title: "Video Review",
+      description: "Approve or reject contributor-submitted videos.",
+    },
   ];
 
   return (
     <AdminLayout title="Admin Dashboard">
-      <div style={styles.wrapper}>
-        <h1 style={styles.heading}>MotorXLive Admin</h1>
+      <p style={{ marginTop: 0, color: "#c9d1d9" }}>
+        Signed in as <strong>{currentUser?.email}</strong>.
+      </p>
 
+      <div style={styles.wrapper}>
         <div style={styles.grid}>
           {cards.map((card) => (
             <Link key={card.href} href={card.href} style={styles.card}>
@@ -57,10 +64,6 @@ const styles = {
     flexDirection: "column",
     gap: 24,
   },
-  heading: {
-    fontSize: 32,
-    margin: 0,
-  },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
@@ -74,7 +77,6 @@ const styles = {
     background: "#11161c",
     borderRadius: 14,
     padding: 22,
-    transition: "all .15s ease",
   },
   cardTitle: {
     margin: "0 0 10px",
