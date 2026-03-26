@@ -1,5 +1,16 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { hash } from "bcryptjs";
+
+const dbUrl = process.env.DATABASE_URL || "";
+
+try {
+  const parsed = new URL(dbUrl);
+  console.log("SEED_DB_HOST:", parsed.hostname);
+  console.log("SEED_DB_NAME:", parsed.pathname);
+} catch {
+  console.log("SEED_DB_URL_PARSE_FAILED");
+}
 
 const prisma = new PrismaClient();
 
