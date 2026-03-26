@@ -7,6 +7,103 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  createdAt        DateTime @default(now())
+  isActive         Boolean  @default(true)
+  passwordHash     String
+  updatedAt        DateTime @updatedAt
+  role             UserRole @default(STREAMER)
+  streamsSubmitted Stream[] @relation("StreamSubmittedBy")
+  videosSubmitted  Video[]  @relation("VideoSubmittedBy")
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  name      String
+  slug      String  @unique
+  sortOrder Int     @default(0)
+  events    Event[]
+}
+
+model Event {
+  id           String    @id @default(cuid())
+  title        String
+  slug         String    @unique
+  startAt      DateTime?
+  endAt        DateTime?
+  heroImageUrl String?
+  categoryId   String?
+  description  String?
+  addressLine1 String?
+  city         String?
+  country      String?
+  latitude     Float?
+  longitude    Float?
+  postalCode   String?
+  state        String?
+  venueName    String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  streams      Stream[]
+  videos       Video[]
+}
+
+model Stream {
+  id                String                @id @default(cuid())
+  eventId           String
+  sourceType        StreamSourceType
+  provider          String                @default("custom")
+  title             String?
+  isPrimary         Boolean               @default(false)
+  priority          Int                   @default(0)
+  playbackHlsUrl    String?
+  playbackDashUrl   String?
+  youtubeVideoId    String?
+  lifecycle         StreamLifecycleStatus @default(CREATED)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  needsReview       Boolean               @default(true)
+  submittedByUserId String?
+  moderationStatus  ModerationStatus      @default(PENDING)
+  rejectionReason   String?
+  reviewedAt        DateTime?
+  reviewedByUserId  String?
+  event             Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  submittedBy       User?                 @relation("StreamSubmittedBy", fields: [submittedByUserId], references: [id])
+
+  @@index([eventId, priority])
+}
+
+model Video {
+  id                String           @id @default(cuid())
+  eventId           String
+  submittedByUserId String?
+  needsReview       Boolean          @default(true)
+  sourceType        VideoSourceType
+  provider          String           @default("custom")
+  title             String
+  description       String?
+  playbackHlsUrl    String?
+  playbackDashUrl   String?
+  youtubeVideoId    String?
+  durationSeconds   Int?
+  status            VideoStatus      @default(PROCESSING)
+  publishedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  moderationStatus  ModerationStatus @default(PENDING)
+  rejectionReason   String?
+  reviewedAt        DateTime?
+  reviewedByUserId  String?
+  event             Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  submittedBy       User?            @relation("VideoSubmittedBy", fields: [submittedByUserId], references: [id])
+
+  @@index([eventId])
+  @@index([submittedByUserId])
+}
+
 enum UserRole {
   ADMIN
   STREAMER
@@ -17,89 +114,6 @@ enum ModerationStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-model User {
-  id               String       @id @default(cuid())
-  email            String       @unique
-  passwordHash     String
-  name             String?
-  role             UserRole     @default(STREAMER)
-  isActive         Boolean      @default(true)
-
-  streamsSubmitted Stream[]     @relation("StreamSubmittedBy")
-  videosSubmitted  Video[]      @relation("VideoSubmittedBy")
-
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-}
-
-model Category {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  sortOrder Int      @default(0)
-
-  events    Event[]
-}
-
-model Event {
-  id           String    @id @default(cuid())
-  title        String
-  slug         String    @unique
-  description  String?
-  startAt      DateTime?
-  endAt        DateTime?
-  heroImageUrl String?
-
-  venueName    String?
-  addressLine1 String?
-  city         String?
-  state        String?
-  postalCode   String?
-  country      String?
-
-  latitude     Float?
-  longitude    Float?
-
-  categoryId   String?
-  category     Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  videos       Video[]
-  streams      Stream[]
-}
-
-model Stream {
-  id               String                @id @default(cuid())
-  eventId          String
-  event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  submittedByUserId String?
-  submittedBy       User?                @relation("StreamSubmittedBy", fields: [submittedByUserId], references: [id])
-  needsReview       Boolean              @default(true)
-
-  sourceType       StreamSourceType
-  provider         String                @default("custom")
-
-  title            String?
-  isPrimary        Boolean               @default(false)
-  priority         Int                   @default(0)
-
-  playbackHlsUrl   String?
-  playbackDashUrl  String?
-  youtubeVideoId   String?
-
-  lifecycle        StreamLifecycleStatus @default(CREATED)
-
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  
-  moderationStatus ModerationStatus @default(PENDING)
-  rejectionReason  String?
-  reviewedAt       DateTime?
-  reviewedByUserId String?
-
-  @@index([eventId, priority])
 }
 
 enum VideoSourceType {
@@ -128,38 +142,4 @@ enum StreamLifecycleStatus {
   ENDED
   DISABLED
   ERROR
-}
-
-model Video {
-  id                String          @id @default(cuid())
-  eventId           String
-  event             Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  submittedByUserId String?
-  submittedBy       User?           @relation("VideoSubmittedBy", fields: [submittedByUserId], references: [id])
-  needsReview       Boolean         @default(true)
-
-  sourceType        VideoSourceType
-  provider          String          @default("custom")
-
-  title             String
-  description       String?
-  playbackHlsUrl    String?
-  playbackDashUrl   String?
-  youtubeVideoId    String?
-  durationSeconds   Int?
-
-  status            VideoStatus     @default(PROCESSING)
-  publishedAt       DateTime?
-
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-
-  moderationStatus ModerationStatus @default(PENDING)
-  rejectionReason  String?
-  reviewedAt       DateTime?
-  reviewedByUserId String?
-
-  @@index([eventId])
-  @@index([submittedByUserId])
 }
