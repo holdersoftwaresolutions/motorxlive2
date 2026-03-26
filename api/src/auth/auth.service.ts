@@ -19,6 +19,14 @@ export class AuthService {
   async validateUser(email: string, password: string) {
     const normalizedEmail = email.toLowerCase().trim();
 
+    const dbUrl = process.env.DATABASE_URL || "";
+    try {
+      const parsed = new URL(dbUrl);
+      console.log("DB_HOST:", parsed.hostname);
+      console.log("DB_NAME:", parsed.pathname);
+    } catch {
+    console.log("DB_URL_PARSE_FAILED"); 
+    }
     console.log("LOGIN_EMAIL_RAW:", email);
     console.log("LOGIN_EMAIL_NORMALIZED:", normalizedEmail);
     console.log("LOGIN_PASSWORD_LENGTH:", password?.length ?? 0);
