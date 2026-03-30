@@ -43,6 +43,10 @@ export class StorageService {
 
     const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 60 * 10 });
 
+    console.log("STORAGE_PUBLIC_BASE_URL =", publicBaseUrl);
+    console.log("Generated flyer key =", key);
+    console.log("Generated publicUrl =", `${publicBaseUrl}/${key}`);
+
     return {
       uploadUrl,
       publicUrl: `${publicBaseUrl}/${key}`,
