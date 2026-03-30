@@ -1,3 +1,4 @@
+import { hash } from "bcryptjs";
 import {
   Body,
   Controller,
@@ -14,6 +15,7 @@ import {
   CreateEventDto,
   UpdateCategoryDto,
   UpdateEventDto,
+  CreateContributorDto,
 } from "./admin.dto";
 import { CreateStreamDto, UpdateStreamDto } from "./admin-streams.dto";
 import { RejectSubmissionDto } from "./admin-review.dto";
@@ -26,6 +28,56 @@ import { Roles } from "../auth/roles.decorator";
 @Controller("admin")
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
+
+
+  // ---------- USERS ----------
+
+  @Get("users")
+  async listUsers() {
+    return this.prisma.user.findMany({
+      orderBy: [{ createdAt: "desc" }],
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  @Post("users")
+  async createContributor(@Body() dto: CreateContributorDto) {
+    const email = dto.email.toLowerCase().trim();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existing) {
+      return { ok: false, error: "A user with that email already exists." };
+    }
+
+    const passwordHash = await hash(dto.password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        name: dto.name?.trim() || null,
+        passwordHash,
+        role: dto.role,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    return { ok: true, user };
+  }
 
   // ---------- CATEGORIES ----------
 

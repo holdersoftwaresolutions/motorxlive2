@@ -141,11 +141,11 @@ export class ContributorController {
       data: {
         eventId,
         submittedByUserId: userId,
-        needsReview: true,
-        moderationStatus: "PENDING",
+        needsReview: false,
+        moderationStatus: "APPROVED",
         rejectionReason: null,
-        reviewedAt: null,
-        reviewedByUserId: null,
+        reviewedAt: new Date(),
+        reviewedByUserId: userId,
         sourceType: dto.sourceType as any,
         provider: "custom",
         title: dto.title,
@@ -192,10 +192,6 @@ export class ContributorController {
       throw new ForbiddenException("Not your stream");
     }
 
-    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
-      throw new ForbiddenException("Cannot edit an approved stream");
-    }
-
     if (dto.isPrimary) {
       await this.prisma.stream.updateMany({
         where: {
@@ -216,11 +212,11 @@ export class ContributorController {
         ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
         ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
         ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
-        needsReview: true,
-        moderationStatus: "PENDING",
+        needsReview: false,
+        moderationStatus: "APPROVED",
         rejectionReason: null,
-        reviewedAt: null,
-        reviewedByUserId: null,
+        reviewedAt: new Date(),
+        reviewedByUserId: userId,
       },
     });
 
@@ -251,10 +247,6 @@ export class ContributorController {
 
     if (role !== "ADMIN" && existing.submittedByUserId !== userId) {
       throw new ForbiddenException("Not your stream");
-    }
-
-    if (role !== "ADMIN" && existing.moderationStatus === "APPROVED") {
-      throw new ForbiddenException("Cannot delete an approved stream");
     }
 
     await this.prisma.stream.delete({
@@ -318,6 +310,15 @@ export class ContributorController {
       };
     }
 
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+
+    if (!event) {
+      return { ok: false, error: "Event not found" };
+    }
+
     const created = await this.prisma.video.create({
       data: {
         eventId,
@@ -328,12 +329,12 @@ export class ContributorController {
         reviewedAt: null,
         reviewedByUserId: null,
         sourceType: dto.sourceType as any,
-        provider: "custom",
-        title: dto.title,
-        description: dto.description,
-        playbackHlsUrl: dto.playbackHlsUrl,
-        playbackDashUrl: dto.playbackDashUrl,
-        youtubeVideoId: dto.youtubeVideoId,
+        provider: dto.sourceType === "YOUTUBE" ? "youtube" : "custom",
+        title: dto.title.trim(),
+        description: dto.description?.trim() || null,
+        playbackHlsUrl: dto.playbackHlsUrl || null,
+        playbackDashUrl: dto.playbackDashUrl || null,
+        youtubeVideoId: dto.youtubeVideoId?.trim() || null,
         durationSeconds: dto.durationSeconds,
         publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
         status: "READY",
@@ -380,11 +381,11 @@ export class ContributorController {
     const updated = await this.prisma.video.update({
       where: { id },
       data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
-        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
-        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
+        ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
+        ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId?.trim() || null } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
         ...(dto.durationSeconds !== undefined ? { durationSeconds: dto.durationSeconds } : {}),
         ...(dto.publishedAt !== undefined
           ? { publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null }

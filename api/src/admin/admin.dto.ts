@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsDateString, IsEmail, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min, MinLength } from "class-validator";
 
 export class CreateCategoryDto {
   @IsString()
@@ -150,4 +150,20 @@ export class UpdateEventDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+}
+
+export class CreateContributorDto {
+  @IsEmail()
+  email!: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @IsIn(["STREAMER", "MEDIA"])
+  role!: "STREAMER" | "MEDIA";
 }
