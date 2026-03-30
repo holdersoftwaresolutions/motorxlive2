@@ -1,15 +1,23 @@
 import {
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
   Min,
+  MinLength,
 } from "class-validator";
 
+export enum ContributorVideoSourceTypeDto {
+  EXTERNAL_HLS = "EXTERNAL_HLS",
+  YOUTUBE = "YOUTUBE",
+}
+
 export class SubmitVideoDto {
-  @IsString()
-  sourceType!: string;
+  @IsEnum(ContributorVideoSourceTypeDto)
+  sourceType!: ContributorVideoSourceTypeDto;
 
   @IsString()
+  @MinLength(1)
   title!: string;
 
   @IsOptional()
@@ -41,6 +49,7 @@ export class SubmitVideoDto {
 export class UpdateSubmittedVideoDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
   title?: string;
 
   @IsOptional()

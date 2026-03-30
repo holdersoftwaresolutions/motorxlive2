@@ -2,6 +2,9 @@ import { adminFetch } from "./adminFetch";
 
 export async function uploadFlyer(file) {
   if (!file) throw new Error("No file selected");
+  if (!file.type || !file.type.startsWith("image/")) {
+    throw new Error("Flyer must be an image file.");
+  }
 
   const presignRes = await adminFetch("/api/admin/uploads/flyer", {
     method: "POST",
@@ -21,6 +24,10 @@ export async function uploadFlyer(file) {
 
   const { uploadUrl, publicUrl } = JSON.parse(presignText);
 
+  if (!uploadUrl || !publicUrl) {
+    throw new Error("Storage service did not return a valid upload URL.");
+  }
+
   const uploadRes = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
@@ -30,7 +37,8 @@ export async function uploadFlyer(file) {
   });
 
   if (!uploadRes.ok) {
-    throw new Error("Failed to upload flyer file");
+    const text = await uploadRes.text().catch(() => "");
+    throw new Error(text || "Failed to upload flyer file");
   }
 
   return publicUrl;
