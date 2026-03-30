@@ -124,12 +124,13 @@ function formatDate(dateValue) {
   }
 }
 
-export default function EventWatchPage({ event, liveData }) {
+export default function EventWatchPage({ event, liveData, videoData }) {
   const [selectedStreamId, setSelectedStreamId] = useState(
     liveData?.primaryStream?.id || liveData?.streams?.[0]?.id || ""
   );
 
   const streams = liveData?.streams || [];
+  const approvedVideos = (videoData?.videos && videoData.videos.length ? videoData.videos : event?.videos) || [];
 
   useEffect(() => {
     if (!selectedStreamId && streams.length > 0) {
@@ -189,6 +190,12 @@ export default function EventWatchPage({ event, liveData }) {
                 <StreamPlayer stream={selectedStream} />
               </div>
 
+              <div style={styles.statusStrip}>
+                <div style={styles.statusPill}>{selectedStream ? `Watching: ${selectedStream.title || "Primary feed"}` : "No approved live feed yet"}</div>
+                <div style={styles.statusPill}>{streams.length ? `${streams.length} approved ${streams.length === 1 ? "stream" : "streams"}` : "Waiting on first live feed"}</div>
+                <div style={styles.statusPill}>{approvedVideos.length} published {approvedVideos.length === 1 ? "video" : "videos"}</div>
+              </div>
+
               {streams.length > 1 ? (
                 <div style={styles.streamSwitcher}>
                   <div style={styles.sectionHeading}>Available Streams</div>
@@ -243,7 +250,7 @@ export default function EventWatchPage({ event, liveData }) {
 
               <div style={styles.infoCard}>
                 <div style={styles.sectionHeading}>Replays & Videos</div>
-                {!event.videos?.length ? (
+                {!approvedVideos.length ? (
                   <p style={styles.mutedText}>No videos published yet.</p>
                 ) : (
                   <div style={styles.videoList}>
@@ -311,7 +318,8 @@ export default function EventWatchPage({ event, liveData }) {
                 <div style={styles.sectionHeading}>Viewing Tips</div>
                 <ul style={styles.tipList}>
                   <li>Use the stream buttons to switch feeds.</li>
-                  <li>Refresh if a newly approved stream does not appear immediately.</li>
+                  <li>Live feeds from approved beta contributors appear here automatically.</li>
+                  <li>Refresh if a newly approved stream or video does not appear immediately.</li>
                   <li>For Chrome/Edge, HLS playback is handled automatically.</li>
                 </ul>
               </div>
@@ -331,18 +339,21 @@ export async function getServerSideProps(ctx) {
     "http://localhost:3001";
 
   try {
-    const [eventRes, liveRes] = await Promise.all([
+    const [eventRes, liveRes, videoRes] = await Promise.all([
       fetch(`${baseUrl}/public/events/${slug}`),
       fetch(`${baseUrl}/public/events/${slug}/live`),
+      fetch(`${baseUrl}/public/events/${slug}/videos`),
     ]);
 
     const event = await eventRes.json();
     const liveData = await liveRes.json();
+    const videoData = await videoRes.json();
 
     return {
       props: {
         event,
         liveData,
+        videoData,
       },
     };
   } catch {
@@ -350,6 +361,7 @@ export async function getServerSideProps(ctx) {
       props: {
         event: { ok: false },
         liveData: { streams: [] },
+        videoData: { videos: [] },
       },
     };
   }

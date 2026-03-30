@@ -168,11 +168,10 @@ export class PublicEventsController {
         },
         videos: {
           where: {
+            moderationStatus: "APPROVED",
             status: "READY",
-            needsReview: false,
-            publishedAt: { not: null },
           },
-          orderBy: [{ publishedAt: "desc" }],
+          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
         },
       },
     });

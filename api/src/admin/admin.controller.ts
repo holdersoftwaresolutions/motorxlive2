@@ -187,6 +187,31 @@ export class AdminController {
 
   // ---------- STREAMS ----------
 
+  @Get("streams")
+  async listStreams() {
+    return this.prisma.stream.findMany({
+      orderBy: [{ createdAt: "desc" }],
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+        submittedBy: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+
   @Post("events/:id/streams")
   async createStream(@Param("id") eventId: string, @Body() dto: CreateStreamDto) {
     return this.prisma.stream.create({

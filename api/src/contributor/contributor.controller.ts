@@ -72,6 +72,79 @@ export class ContributorController {
     });
   }
 
+  @Get("dashboard")
+  async getContributorDashboard(@Req() req: any) {
+    const userId = this.getUserId(req);
+    const role = this.getUserRole(req);
+
+    if (!userId) {
+      throw new ForbiddenException("Missing user");
+    }
+
+    const [recentStreams, recentVideos] = await Promise.all([
+      this.prisma.stream.findMany({
+        where: role === "ADMIN" ? {} : { submittedByUserId: userId },
+        orderBy: [{ createdAt: "desc" }],
+        take: 5,
+        include: {
+          event: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              startAt: true,
+            },
+          },
+        },
+      }),
+      this.prisma.video.findMany({
+        where: role === "ADMIN" ? {} : { submittedByUserId: userId },
+        orderBy: [{ createdAt: "desc" }],
+        take: 5,
+        include: {
+          event: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              startAt: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const streamSummary = recentStreams.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.moderationStatus === "APPROVED") acc.approved += 1;
+        else if (item.moderationStatus === "REJECTED") acc.rejected += 1;
+        else acc.pending += 1;
+        if (item.lifecycle === "LIVE") acc.live += 1;
+        return acc;
+      },
+      { total: 0, approved: 0, rejected: 0, pending: 0, live: 0 }
+    );
+
+    const videoSummary = recentVideos.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.moderationStatus === "APPROVED") acc.approved += 1;
+        else if (item.moderationStatus === "REJECTED") acc.rejected += 1;
+        else acc.pending += 1;
+        return acc;
+      },
+      { total: 0, approved: 0, rejected: 0, pending: 0 }
+    );
+
+    return {
+      streamSummary,
+      videoSummary,
+      recentStreams,
+      recentVideos,
+    };
+  }
+
   // ---------- STREAMS ----------
 
   @Get("events/:id/streams")
