@@ -199,6 +199,15 @@ export class ContributorController {
       };
     }
 
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true },
+    });
+
+    if (!event) {
+      return { ok: false, error: "Event not found" };
+    }
+
     if (dto.isPrimary) {
       await this.prisma.stream.updateMany({
         where: {
@@ -220,14 +229,14 @@ export class ContributorController {
         reviewedAt: new Date(),
         reviewedByUserId: userId,
         sourceType: dto.sourceType as any,
-        provider: "custom",
-        title: dto.title,
+        provider: dto.sourceType === "YOUTUBE" ? "youtube" : "custom",
+        title: dto.title?.trim() || "Live Feed",
         isPrimary: dto.isPrimary ?? false,
         priority: dto.priority ?? 0,
-        playbackHlsUrl: dto.playbackHlsUrl,
-        playbackDashUrl: dto.playbackDashUrl,
-        youtubeVideoId: dto.youtubeVideoId,
-        lifecycle: "CREATED",
+        playbackHlsUrl: dto.playbackHlsUrl || null,
+        playbackDashUrl: dto.playbackDashUrl || null,
+        youtubeVideoId: dto.youtubeVideoId?.trim() || null,
+        lifecycle: "READY",
       },
     });
 
@@ -279,17 +288,18 @@ export class ContributorController {
     const updated = await this.prisma.stream.update({
       where: { id },
       data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.title !== undefined ? { title: dto.title?.trim() || "Live Feed" } : {}),
         ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
-        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
-        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
+        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId?.trim() || null } : {}),
         needsReview: false,
         moderationStatus: "APPROVED",
         rejectionReason: null,
         reviewedAt: new Date(),
         reviewedByUserId: userId,
+        lifecycle: "READY",
       },
     });
 
