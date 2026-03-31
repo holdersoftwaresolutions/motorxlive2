@@ -10,7 +10,15 @@ function getEmbedType(stream) {
   return "unknown";
 }
 
-function YouTubePlayer({ videoId }) {
+function getVideoEmbedType(video) {
+  if (!video) return "unknown";
+  if (video.youtubeVideoId) return "youtube";
+  if (video.playbackHlsUrl) return "hls";
+  if (video.playbackDashUrl) return "dash";
+  return "unknown";
+}
+
+function YouTubePlayer({ videoId, title = "Video Player" }) {
   if (!videoId) {
     return <div style={styles.playerFallback}>Missing YouTube video ID.</div>;
   }
@@ -20,7 +28,7 @@ function YouTubePlayer({ videoId }) {
       <iframe
         style={styles.iframe}
         src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
-        title="Live Stream"
+        title={title}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
       />
@@ -91,7 +99,7 @@ function StreamPlayer({ stream }) {
   }
 
   if (embedType === "youtube") {
-    return <YouTubePlayer videoId={stream.youtubeVideoId} />;
+    return <YouTubePlayer videoId={stream.youtubeVideoId} title={stream.title || "Live Stream"} />;
   }
 
   if (embedType === "hls") {
@@ -107,6 +115,32 @@ function StreamPlayer({ stream }) {
   }
 
   return <div style={styles.playerFallback}>Unsupported stream type.</div>;
+}
+
+function VideoPlayer({ video }) {
+  const embedType = getVideoEmbedType(video);
+
+  if (!video) {
+    return <div style={styles.playerFallback}>No video selected.</div>;
+  }
+
+  if (embedType === "youtube") {
+    return <YouTubePlayer videoId={video.youtubeVideoId} title={video.title || "Event Video"} />;
+  }
+
+  if (embedType === "hls") {
+    return <HlsPlayer src={video.playbackHlsUrl} />;
+  }
+
+  if (embedType === "dash" && video.playbackDashUrl) {
+    return (
+      <div style={styles.playerFallback}>
+        DASH video detected. Add dash.js later or provide HLS for broader browser support.
+      </div>
+    );
+  }
+
+  return <div style={styles.playerFallback}>Unsupported video type.</div>;
 }
 
 function formatDate(dateValue) {
@@ -125,22 +159,47 @@ function formatDate(dateValue) {
 }
 
 export default function EventWatchPage({ event, liveData, videoData }) {
-  const [selectedStreamId, setSelectedStreamId] = useState(
-    liveData?.primaryStream?.id || liveData?.streams?.[0]?.id || ""
-  );
-
   const streams = liveData?.streams || [];
-  const approvedVideos = (videoData?.videos && videoData.videos.length ? videoData.videos : event?.videos) || [];
+  const approvedVideos =
+    (videoData?.videos && videoData.videos.length ? videoData.videos : event?.videos) || [];
+
+  const [selectedMedia, setSelectedMedia] = useState(() => {
+    const firstStream = liveData?.primaryStream || liveData?.streams?.[0] || null;
+    const firstVideo = approvedVideos?.[0] || null;
+
+    if (firstStream) {
+      return { type: "stream", id: firstStream.id };
+    }
+
+    if (firstVideo) {
+      return { type: "video", id: firstVideo.id };
+    }
+
+    return null;
+  });
 
   useEffect(() => {
-    if (!selectedStreamId && streams.length > 0) {
-      setSelectedStreamId(streams[0].id);
+    if (!selectedMedia) {
+      if (streams.length > 0) {
+        setSelectedMedia({ type: "stream", id: streams[0].id });
+        return;
+      }
+
+      if (approvedVideos.length > 0) {
+        setSelectedMedia({ type: "video", id: approvedVideos[0].id });
+      }
     }
-  }, [selectedStreamId, streams]);
+  }, [selectedMedia, streams, approvedVideos]);
 
   const selectedStream = useMemo(() => {
-    return streams.find((stream) => stream.id === selectedStreamId) || streams[0] || null;
-  }, [selectedStreamId, streams]);
+    if (selectedMedia?.type !== "stream") return null;
+    return streams.find((stream) => stream.id === selectedMedia.id) || streams[0] || null;
+  }, [selectedMedia, streams]);
+
+  const selectedVideo = useMemo(() => {
+    if (selectedMedia?.type !== "video") return null;
+    return approvedVideos.find((video) => video.id === selectedMedia.id) || approvedVideos[0] || null;
+  }, [selectedMedia, approvedVideos]);
 
   if (!event || event.ok === false) {
     return (
@@ -156,15 +215,17 @@ export default function EventWatchPage({ event, liveData, videoData }) {
     );
   }
 
-  const locationLabel = [event.venueName, event.city, event.state].filter(Boolean).join(" • ");
+  const locationLabel = [event.venueName, event.city, event.state]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
     <>
       <Head>
-        <title>{`${event?.title || "Event"} | MotorXLive`}</title>
+        <title>{event.title} | MotorXLive</title>
         <meta
           name="description"
-          content={event.description || `Watch ${event.title} live on MotorXLive.`}
+          content={event.description || `Watch ${event.title} on MotorXLive.`}
         />
       </Head>
 
@@ -173,7 +234,7 @@ export default function EventWatchPage({ event, liveData, videoData }) {
           <div style={styles.heroGrid}>
             <div style={styles.mainColumn}>
               <div style={styles.liveHeader}>
-                <span style={styles.liveBadge}>LIVE EVENT</span>
+                <span style={styles.liveBadge}>WATCH</span>
                 {event.category?.name ? (
                   <span style={styles.categoryBadge}>{event.category.name}</span>
                 ) : null}
@@ -187,16 +248,34 @@ export default function EventWatchPage({ event, liveData, videoData }) {
               </div>
 
               <div style={styles.playerCard}>
-                <StreamPlayer stream={selectedStream} />
+                {selectedMedia?.type === "stream" ? (
+                  <StreamPlayer stream={selectedStream} />
+                ) : selectedMedia?.type === "video" ? (
+                  <VideoPlayer video={selectedVideo} />
+                ) : (
+                  <div style={styles.playerFallback}>No stream or video available yet.</div>
+                )}
               </div>
 
               <div style={styles.statusStrip}>
-                <div style={styles.statusPill}>{selectedStream ? `Watching: ${selectedStream.title || "Primary feed"}` : "No approved live feed yet"}</div>
-                <div style={styles.statusPill}>{streams.length ? `${streams.length} approved ${streams.length === 1 ? "stream" : "streams"}` : "Waiting on first live feed"}</div>
-                <div style={styles.statusPill}>{approvedVideos.length} published {approvedVideos.length === 1 ? "video" : "videos"}</div>
+                <div style={styles.statusPill}>
+                  {selectedMedia?.type === "stream" && selectedStream
+                    ? `Watching live: ${selectedStream.title || "Primary feed"}`
+                    : selectedMedia?.type === "video" && selectedVideo
+                    ? `Watching video: ${selectedVideo.title || "Replay"}`
+                    : "No stream or video selected"}
+                </div>
+                <div style={styles.statusPill}>
+                  {streams.length
+                    ? `${streams.length} approved ${streams.length === 1 ? "stream" : "streams"}`
+                    : "No live feeds returned"}
+                </div>
+                <div style={styles.statusPill}>
+                  {approvedVideos.length} published {approvedVideos.length === 1 ? "video" : "videos"}
+                </div>
               </div>
 
-              {streams.length > 1 ? (
+              {streams.length > 0 ? (
                 <div style={styles.streamSwitcher}>
                   <div style={styles.sectionHeading}>Available Streams</div>
                   <div style={styles.streamTabs}>
@@ -204,10 +283,12 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                       <button
                         key={stream.id}
                         type="button"
-                        onClick={() => setSelectedStreamId(stream.id)}
+                        onClick={() => setSelectedMedia({ type: "stream", id: stream.id })}
                         style={{
                           ...styles.streamTab,
-                          ...(selectedStreamId === stream.id ? styles.streamTabActive : {}),
+                          ...(selectedMedia?.type === "stream" && selectedMedia?.id === stream.id
+                            ? styles.streamTabActive
+                            : {}),
                         }}
                       >
                         {stream.title || `Stream ${index + 1}`}
@@ -254,7 +335,7 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                   <p style={styles.mutedText}>No videos published yet.</p>
                 ) : (
                   <div style={styles.videoList}>
-                    {event.videos.map((video) => (
+                    {approvedVideos.map((video) => (
                       <div key={video.id} style={styles.videoRow}>
                         <div>
                           <div style={styles.videoTitle}>{video.title}</div>
@@ -263,24 +344,14 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                           </div>
                         </div>
 
-                        {video.youtubeVideoId ? (
-                          <a
-                            href={`https://www.youtube.com/watch?v=${video.youtubeVideoId}`}
-                            target="_blank"
-                            rel="noreferrer"
+                        {(video.youtubeVideoId || video.playbackHlsUrl || video.playbackDashUrl) ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedMedia({ type: "video", id: video.id })}
                             style={styles.linkButton}
                           >
                             Watch
-                          </a>
-                        ) : video.playbackHlsUrl ? (
-                          <a
-                            href={video.playbackHlsUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={styles.linkButton}
-                          >
-                            Open
-                          </a>
+                          </button>
                         ) : null}
                       </div>
                     ))}
@@ -317,8 +388,8 @@ export default function EventWatchPage({ event, liveData, videoData }) {
               <div style={styles.infoCard}>
                 <div style={styles.sectionHeading}>Viewing Tips</div>
                 <ul style={styles.tipList}>
-                  <li>Use the stream buttons to switch feeds.</li>
-                  <li>Live feeds from approved beta contributors appear here automatically.</li>
+                  <li>Use the stream and video buttons to switch what plays in the main player.</li>
+                  <li>Approved videos can play here even when there is no active live feed.</li>
                   <li>Refresh if a newly approved stream or video does not appear immediately.</li>
                   <li>For Chrome/Edge, HLS playback is handled automatically.</li>
                 </ul>
@@ -441,7 +512,7 @@ const styles = {
   iframe: {
     width: "100%",
     height: "100%",
-    border: 0,
+    border: "none",
   },
   video: {
     width: "100%",
@@ -450,25 +521,28 @@ const styles = {
     background: "#000",
   },
   playerFallback: {
-    aspectRatio: "16 / 9",
-    display: "grid",
-    placeItems: "center",
-    background: "#0f141a",
-    color: "#c9d1d9",
-    padding: 20,
+    padding: "48px 24px",
     textAlign: "center",
+    color: "#9aa4af",
+    background: "#0f141a",
+  },
+  statusStrip: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    marginTop: 14,
+    marginBottom: 18,
+  },
+  statusPill: {
+    background: "#101827",
+    border: "1px solid #243041",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontSize: 13,
+    color: "#dbe4ee",
   },
   streamSwitcher: {
-    marginTop: 16,
-    background: "#11161c",
-    border: "1px solid #1f2937",
-    borderRadius: 14,
-    padding: 16,
-  },
-  sectionHeading: {
-    fontSize: 18,
-    fontWeight: 700,
-    marginBottom: 12,
+    marginBottom: 18,
   },
   streamTabs: {
     display: "flex",
@@ -476,49 +550,89 @@ const styles = {
     flexWrap: "wrap",
   },
   streamTab: {
-    background: "#131a22",
-    color: "#dbe5f0",
-    border: "1px solid #223041",
-    borderRadius: 10,
+    border: "1px solid #243041",
+    background: "#11161c",
+    color: "#dbe4ee",
     padding: "10px 14px",
+    borderRadius: 10,
     cursor: "pointer",
   },
   streamTabActive: {
-    background: "#1b2a40",
-    border: "1px solid #4f8cff",
+    background: "#1d4ed8",
+    borderColor: "#1d4ed8",
     color: "#fff",
   },
   infoCard: {
-    marginTop: 18,
     background: "#11161c",
     border: "1px solid #1f2937",
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 18,
+  },
+  sectionHeading: {
+    fontSize: 16,
+    fontWeight: 700,
+    marginBottom: 14,
   },
   description: {
     margin: 0,
-    color: "#c9d1d9",
     lineHeight: 1.7,
+    color: "#d3d8de",
   },
   detailsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 14,
+    gap: 16,
   },
   detailLabel: {
     fontSize: 12,
     textTransform: "uppercase",
-    letterSpacing: 0.7,
-    color: "#8fb3ff",
+    letterSpacing: 0.8,
+    color: "#8b98a7",
     marginBottom: 6,
   },
   detailValue: {
     color: "#f5f7fa",
+    lineHeight: 1.5,
+  },
+  videoList: {
+    display: "grid",
+    gap: 12,
+  },
+  videoRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    padding: "12px 14px",
+    border: "1px solid #1f2937",
+    borderRadius: 12,
+    background: "#0f141a",
+  },
+  videoTitle: {
+    fontWeight: 600,
+    color: "#f5f7fa",
+  },
+  videoMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#9aa4af",
+  },
+  linkButton: {
+    background: "#2563eb",
+    color: "#fff",
+    textDecoration: "none",
+    borderRadius: 10,
+    padding: "10px 14px",
+    display: "inline-block",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 600,
   },
   flyerCard: {
     background: "#11161c",
     border: "1px solid #1f2937",
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: "hidden",
   },
   flyerImage: {
@@ -533,39 +647,12 @@ const styles = {
     color: "#8fb3ff",
     textDecoration: "none",
   },
-  linkButton: {
-    background: "#2563eb",
-    color: "#fff",
-    textDecoration: "none",
-    borderRadius: 10,
-    padding: "10px 14px",
-    display: "inline-block",
-  },
-  videoList: {
-    display: "grid",
-    gap: 12,
-  },
-  videoRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    paddingBottom: 12,
-    borderBottom: "1px solid #1f2937",
-  },
-  videoTitle: {
-    fontWeight: 700,
-  },
-  videoMeta: {
-    color: "#9aa4af",
-    fontSize: 14,
-    marginTop: 4,
-  },
   tipList: {
     margin: 0,
     paddingLeft: 18,
-    color: "#c9d1d9",
-    lineHeight: 1.6,
+    color: "#d3d8de",
+    display: "grid",
+    gap: 8,
   },
   mutedText: {
     color: "#9aa4af",

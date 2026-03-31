@@ -13,6 +13,8 @@ export class PublicEventLiveController {
         id: true,
         slug: true,
         title: true,
+        startAt: true,
+        endAt: true,
       },
     });
 
@@ -33,10 +35,28 @@ export class PublicEventLiveController {
         lifecycle: {
           in: ["READY", "LIVE"],
         },
+        OR: [
+          {
+            youtubeVideoId: {
+              not: null,
+            },
+          },
+          {
+            playbackHlsUrl: {
+              not: null,
+            },
+          },
+          {
+            playbackDashUrl: {
+              not: null,
+            },
+          },
+        ],
       },
       orderBy: [
         { isPrimary: "desc" },
         { priority: "asc" },
+        { updatedAt: "desc" },
         { createdAt: "asc" },
       ],
       select: {
@@ -51,18 +71,32 @@ export class PublicEventLiveController {
         playbackDashUrl: true,
         youtubeVideoId: true,
         lifecycle: true,
+        moderationStatus: true,
         createdAt: true,
         updatedAt: true,
       },
     });
+
+    const normalizedStreams = streams.map((stream) => ({
+      ...stream,
+      title: stream.title || "Live Feed",
+      lifecycle: stream.lifecycle || "READY",
+    }));
+
+    const primaryStream =
+      normalizedStreams.find((stream) => stream.isPrimary) ||
+      normalizedStreams[0] ||
+      null;
 
     return {
       ok: true,
       eventId: event.id,
       eventSlug: event.slug,
       eventTitle: event.title,
-      primaryStream: streams[0] || null,
-      streams,
+      eventStartAt: event.startAt,
+      eventEndAt: event.endAt,
+      primaryStream,
+      streams: normalizedStreams,
     };
   }
 }
