@@ -26,6 +26,10 @@ export class SubmitVideoDto {
 
   @IsOptional()
   @IsString()
+  youtubeUrl?: string;
+
+  @IsOptional()
+  @IsString()
   youtubeVideoId?: string;
 
   @IsOptional()
@@ -55,6 +59,10 @@ export class UpdateSubmittedVideoDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeUrl?: string;
 
   @IsOptional()
   @IsString()

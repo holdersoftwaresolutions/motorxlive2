@@ -1,16 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
 import { requireAdminPage } from "../../lib/requireAdminPage";
+
+function slugify(value = "") {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({
     name: "",
-    slug: "",
     sortOrder: 0,
   });
   const [message, setMessage] = useState("");
+
+  const derivedSlug = useMemo(() => slugify(form.name), [form.name]);
 
   async function loadCategories() {
     const res = await adminFetch("/api/admin/categories");
@@ -26,14 +36,16 @@ export default function AdminCategoriesPage() {
     e.preventDefault();
     setMessage("");
 
+    const payload = {
+      name: form.name.trim(),
+      slug: derivedSlug,
+      sortOrder: Number(form.sortOrder || 0),
+    };
+
     const res = await adminFetch("/api/admin/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        slug: form.slug,
-        sortOrder: Number(form.sortOrder || 0),
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -41,16 +53,22 @@ export default function AdminCategoriesPage() {
       return;
     }
 
-    setForm({ name: "", slug: "", sortOrder: 0 });
+    setForm({ name: "", sortOrder: 0 });
     setMessage("Category created.");
     loadCategories();
   }
 
   async function updateCategory(id, patch) {
-    const res = await adminFetchetch(`/api/admin/categories/${id}`, {
+    const payload = {
+      ...patch,
+      slug: slugify(patch.name || ""),
+      sortOrder: Number(patch.sortOrder || 0),
+    };
+
+    const res = await adminFetch(`/api/admin/categories/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -76,12 +94,9 @@ export default function AdminCategoriesPage() {
               onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
             />
 
-            <input
-              style={styles.input}
-              placeholder="Slug"
-              value={form.slug}
-              onChange={(e) => setForm((s) => ({ ...s, slug: e.target.value }))}
-            />
+            <div style={styles.helperText}>
+              Slug will be created automatically: <strong>{derivedSlug || "—"}</strong>
+            </div>
 
             <input
               style={styles.input}
@@ -91,7 +106,9 @@ export default function AdminCategoriesPage() {
               onChange={(e) => setForm((s) => ({ ...s, sortOrder: e.target.value }))}
             />
 
-            <button type="submit" style={styles.button}>Create Category</button>
+            <button type="submit" style={styles.button}>
+              Create Category
+            </button>
           </form>
 
           {message ? <p style={styles.message}>{message}</p> : null}
@@ -118,9 +135,10 @@ export default function AdminCategoriesPage() {
 function CategoryRow({ category, onSave }) {
   const [draft, setDraft] = useState({
     name: category.name || "",
-    slug: category.slug || "",
     sortOrder: category.sortOrder ?? 0,
   });
+
+  const derivedSlug = useMemo(() => slugify(draft.name), [draft.name]);
 
   return (
     <div style={styles.rowCard}>
@@ -129,11 +147,7 @@ function CategoryRow({ category, onSave }) {
         value={draft.name}
         onChange={(e) => setDraft((s) => ({ ...s, name: e.target.value }))}
       />
-      <input
-        style={styles.input}
-        value={draft.slug}
-        onChange={(e) => setDraft((s) => ({ ...s, slug: e.target.value }))}
-      />
+      <div style={styles.readonlyBox}>{derivedSlug || "—"}</div>
       <input
         style={styles.input}
         type="number"
@@ -180,6 +194,18 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
   },
+  readonlyBox: {
+    width: "100%",
+    background: "#0f141a",
+    border: "1px solid #2a3647",
+    color: "#9aa4af",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
+  helperText: {
+    fontSize: 13,
+    color: "#9aa4af",
+  },
   button: {
     background: "#2563eb",
     color: "#fff",
@@ -202,7 +228,7 @@ const styles = {
   },
   rowCard: {
     display: "grid",
-    gridTemplateColumns: "1.3fr 1fr 120px 100px",
+    gridTemplateColumns: "1.5fr 1.2fr 120px 100px",
     gap: 10,
     alignItems: "center",
   },

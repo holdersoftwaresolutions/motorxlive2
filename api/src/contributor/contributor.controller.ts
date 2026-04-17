@@ -23,6 +23,38 @@ import {
   UpdateSubmittedStreamDto,
 } from "../streamer/streamer-streams.dto";
 
+function extractYouTubeVideoId(input?: string | null): string | null {
+  if (!input) return null;
+
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+
+    if (url.hostname.includes("youtu.be")) {
+      const id = url.pathname.replace("/", "").trim();
+      return id || null;
+    }
+
+    if (url.hostname.includes("youtube.com")) {
+      const fromQuery = url.searchParams.get("v");
+      if (fromQuery) return fromQuery;
+
+      const liveMatch = url.pathname.match(/\/live\/([^/?]+)/);
+      if (liveMatch?.[1]) return liveMatch[1];
+
+      const embedMatch = url.pathname.match(/\/embed\/([^/?]+)/);
+      if (embedMatch?.[1]) return embedMatch[1];
+    }
+  } catch {
+    // not a valid URL, fall through
+  }
+
+  // allow raw video ID fallback
+  return trimmed || null;
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("STREAMER", "MEDIA", "ADMIN")
 @Controller("contributor")
@@ -184,8 +216,13 @@ export class ContributorController {
       throw new ForbiddenException("Missing user");
     }
 
-    if (dto.sourceType === "YOUTUBE" && !dto.youtubeVideoId) {
-      return { ok: false, error: "youtubeVideoId is required for YOUTUBE streams" };
+    const youtubeVideoId =
+      dto.sourceType === "YOUTUBE"
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : null;
+
+    if (dto.sourceType === "YOUTUBE" && !youtubeVideoId) {
+      return { ok: false, error: "A valid YouTube URL or video ID is required for YOUTUBE streams" };
     }
 
     if (
@@ -235,7 +272,7 @@ export class ContributorController {
         priority: dto.priority ?? 0,
         playbackHlsUrl: dto.playbackHlsUrl || null,
         playbackDashUrl: dto.playbackDashUrl || null,
-        youtubeVideoId: dto.youtubeVideoId?.trim() || null,
+        youtubeVideoId,
         lifecycle: "READY",
       },
     });
@@ -263,6 +300,7 @@ export class ContributorController {
         eventId: true,
         submittedByUserId: true,
         moderationStatus: true,
+        youtubeVideoId: true,
       },
     });
 
@@ -285,6 +323,11 @@ export class ContributorController {
       });
     }
 
+    const resolvedYoutubeVideoId =
+      dto.youtubeVideoId !== undefined || dto.youtubeUrl !== undefined
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : undefined;
+
     const updated = await this.prisma.stream.update({
       where: { id },
       data: {
@@ -293,7 +336,7 @@ export class ContributorController {
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
         ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
         ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId?.trim() || null } : {}),
+        ...(resolvedYoutubeVideoId !== undefined ? { youtubeVideoId: resolvedYoutubeVideoId || null } : {}),
         needsReview: false,
         moderationStatus: "APPROVED",
         rejectionReason: null,
@@ -378,8 +421,13 @@ export class ContributorController {
       throw new ForbiddenException("Missing user");
     }
 
-    if (dto.sourceType === "YOUTUBE" && !dto.youtubeVideoId) {
-      return { ok: false, error: "youtubeVideoId is required for YOUTUBE videos" };
+    const youtubeVideoId =
+      dto.sourceType === "YOUTUBE"
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : null;
+
+    if (dto.sourceType === "YOUTUBE" && !youtubeVideoId) {
+      return { ok: false, error: "A valid YouTube URL or video ID is required for YOUTUBE videos" };
     }
 
     if (
@@ -417,7 +465,7 @@ export class ContributorController {
         description: dto.description?.trim() || null,
         playbackHlsUrl: dto.playbackHlsUrl || null,
         playbackDashUrl: dto.playbackDashUrl || null,
-        youtubeVideoId: dto.youtubeVideoId?.trim() || null,
+        youtubeVideoId,
         durationSeconds: dto.durationSeconds,
         publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
         status: "READY",
@@ -446,6 +494,7 @@ export class ContributorController {
         id: true,
         submittedByUserId: true,
         moderationStatus: true,
+        youtubeVideoId: true,
       },
     });
 
@@ -461,12 +510,17 @@ export class ContributorController {
       throw new ForbiddenException("Cannot edit an approved video");
     }
 
+    const resolvedYoutubeVideoId =
+      dto.youtubeVideoId !== undefined || dto.youtubeUrl !== undefined
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : undefined;
+
     const updated = await this.prisma.video.update({
       where: { id },
       data: {
         ...(dto.title !== undefined ? { title: dto.title.trim() } : {}),
         ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId?.trim() || null } : {}),
+        ...(resolvedYoutubeVideoId !== undefined ? { youtubeVideoId: resolvedYoutubeVideoId || null } : {}),
         ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
         ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
         ...(dto.durationSeconds !== undefined ? { durationSeconds: dto.durationSeconds } : {}),

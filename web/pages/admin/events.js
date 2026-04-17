@@ -1,33 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
 import { uploadFlyer } from "../../lib/uploadFlyer";
 import { requireAdminPage } from "../../lib/requireAdminPage";
+
+function slugify(value = "") {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function toStartOfDayIso(dateStr) {
+  return dateStr ? new Date(`${dateStr}T00:00:00`).toISOString() : undefined;
+}
+
+function toEndOfDayIso(dateStr) {
+  return dateStr ? new Date(`${dateStr}T23:59:59`).toISOString() : undefined;
+}
 
 export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [flyerFile, setFlyerFile] = useState(null);
+  const flyerInputRef = useRef(null);
 
   const [form, setForm] = useState({
     title: "",
-    slug: "",
     description: "",
-    startAt: "",
-    endAt: "",
+    startDate: "",
+    endDate: "",
     heroImageUrl: "",
     categoryId: "",
     venueName: "",
-    addressLine1: "",
     city: "",
     state: "",
-    postalCode: "",
-    country: "",
-    latitude: "",
-    longitude: "",
   });
+
+  const derivedSlug = useMemo(() => slugify(form.title), [form.title]);
 
   async function loadAll() {
     try {
@@ -65,28 +78,26 @@ export default function AdminEventsPage() {
     loadAll();
   }, []);
 
-  async function handleUploadFlyer() {
-    try {
-      if (!flyerFile) {
-        setMessage("Choose a flyer image first.");
-        return;
-      }
+  async function handleFlyerSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
+    try {
       setUploading(true);
       setMessage("");
-
-      const publicUrl = await uploadFlyer(flyerFile);
-
+      const publicUrl = await uploadFlyer(file);
       setForm((s) => ({
         ...s,
         heroImageUrl: publicUrl,
       }));
-
       setMessage("Flyer uploaded successfully.");
     } catch (err) {
       setMessage(err.message || "Failed to upload flyer.");
     } finally {
       setUploading(false);
+      if (flyerInputRef.current) {
+        flyerInputRef.current.value = "";
+      }
     }
   }
 
@@ -94,39 +105,23 @@ export default function AdminEventsPage() {
     e.preventDefault();
     setMessage("");
 
-    let heroImageUrl = form.heroImageUrl || undefined;
-
-    if (flyerFile && !heroImageUrl) {
-      try {
-        setUploading(true);
-        heroImageUrl = await uploadFlyer(flyerFile);
-      } catch (err) {
-        setMessage(err.message || "Failed to upload flyer.");
-        setUploading(false);
-        return;
-      } finally {
-        setUploading(false);
-      }
-    }
+    const payload = {
+      title: form.title.trim(),
+      slug: derivedSlug,
+      description: form.description || undefined,
+      startAt: toStartOfDayIso(form.startDate),
+      endAt: toEndOfDayIso(form.endDate || form.startDate),
+      heroImageUrl: form.heroImageUrl || undefined,
+      categoryId: form.categoryId || undefined,
+      venueName: form.venueName || undefined,
+      city: form.city || undefined,
+      state: form.state || undefined,
+    };
 
     const res = await adminFetch("/api/admin/events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        categoryId: form.categoryId || undefined,
-        startAt: form.startAt || undefined,
-        endAt: form.endAt || undefined,
-        heroImageUrl,
-        venueName: form.venueName || undefined,
-        addressLine1: form.addressLine1 || undefined,
-        city: form.city || undefined,
-        state: form.state || undefined,
-        postalCode: form.postalCode || undefined,
-        country: form.country || undefined,
-        latitude: form.latitude ? Number(form.latitude) : undefined,
-        longitude: form.longitude ? Number(form.longitude) : undefined,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const text = await res.text();
@@ -139,30 +134,28 @@ export default function AdminEventsPage() {
     setMessage("Event created.");
     setForm({
       title: "",
-      slug: "",
       description: "",
-      startAt: "",
-      endAt: "",
+      startDate: "",
+      endDate: "",
       heroImageUrl: "",
       categoryId: "",
       venueName: "",
-      addressLine1: "",
       city: "",
       state: "",
-      postalCode: "",
-      country: "",
-      latitude: "",
-      longitude: "",
     });
-    setFlyerFile(null);
     loadAll();
   }
 
   async function updateEvent(id, patch) {
+    const payload = {
+      ...patch,
+      slug: slugify(patch.title || ""),
+    };
+
     const res = await adminFetch(`/api/admin/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+      body: JSON.stringify(payload),
     });
 
     const text = await res.text();
@@ -183,14 +176,59 @@ export default function AdminEventsPage() {
           <h2 style={styles.sectionTitle}>Create Event</h2>
 
           <form onSubmit={handleCreate} style={styles.form}>
-            <input style={styles.input} placeholder="Title" value={form.title} onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} />
-            <input style={styles.input} placeholder="Slug" value={form.slug} onChange={(e) => setForm((s) => ({ ...s, slug: e.target.value }))} />
-            <textarea style={styles.textarea} placeholder="Description" value={form.description} onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))} />
-            <input style={styles.input} type="datetime-local" value={form.startAt} onChange={(e) => setForm((s) => ({ ...s, startAt: e.target.value }))} />
-            <input style={styles.input} type="datetime-local" value={form.endAt} onChange={(e) => setForm((s) => ({ ...s, endAt: e.target.value }))} />
-            <input style={styles.input} placeholder="Venue Name" value={form.venueName} onChange={(e) => setForm((s) => ({ ...s, venueName: e.target.value }))} />
-            <input style={styles.input} placeholder="City" value={form.city} onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))} />
-            <input style={styles.input} placeholder="State" value={form.state} onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))} />
+            <input
+              style={styles.input}
+              placeholder="Title"
+              value={form.title}
+              onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
+            />
+
+            <div style={styles.helperText}>
+              Slug will be created automatically: <strong>{derivedSlug || "—"}</strong>
+            </div>
+
+            <textarea
+              style={styles.textarea}
+              placeholder="Description"
+              value={form.description}
+              onChange={(e) => setForm((s) => ({ ...s, description: e.target.value }))}
+            />
+
+            <input
+              style={styles.input}
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setForm((s) => ({ ...s, startDate: e.target.value }))}
+            />
+
+            <input
+              style={styles.input}
+              type="date"
+              value={form.endDate}
+              onChange={(e) => setForm((s) => ({ ...s, endDate: e.target.value }))}
+            />
+
+            <input
+              style={styles.input}
+              placeholder="Venue Name"
+              value={form.venueName}
+              onChange={(e) => setForm((s) => ({ ...s, venueName: e.target.value }))}
+            />
+
+            <input
+              style={styles.input}
+              placeholder="City"
+              value={form.city}
+              onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
+            />
+
+            <input
+              style={styles.input}
+              placeholder="State"
+              value={form.state}
+              onChange={(e) => setForm((s) => ({ ...s, state: e.target.value }))}
+            />
+
             <select
               style={styles.input}
               value={form.categoryId}
@@ -204,21 +242,22 @@ export default function AdminEventsPage() {
               ))}
             </select>
 
-            <input
-              style={styles.input}
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFlyerFile(e.target.files?.[0] || null)}
-            />
-
             <button
               type="button"
               style={styles.secondaryButton}
-              onClick={handleUploadFlyer}
+              onClick={() => flyerInputRef.current?.click()}
               disabled={uploading}
             >
-              {uploading ? "Uploading..." : "Upload Flyer"}
+              {uploading ? "Uploading..." : "Choose Flyer"}
             </button>
+
+            <input
+              ref={flyerInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={handleFlyerSelected}
+            />
 
             <input
               style={styles.input}
@@ -227,7 +266,9 @@ export default function AdminEventsPage() {
               onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
             />
 
-            <button type="submit" style={styles.button}>Create Event</button>
+            <button type="submit" style={styles.button} disabled={uploading}>
+              Create Event
+            </button>
           </form>
 
           {message ? <p style={styles.message}>{message}</p> : null}
@@ -259,17 +300,28 @@ export default function AdminEventsPage() {
 function EventRow({ event, categories, onSave }) {
   const [draft, setDraft] = useState({
     title: event.title || "",
-    slug: event.slug || "",
-    description: event.description || "",
     heroImageUrl: event.heroImageUrl || "",
     categoryId: event.categoryId || "",
   });
 
+  const derivedSlug = useMemo(() => slugify(draft.title), [draft.title]);
+
   return (
     <div style={styles.rowCard}>
-      <input style={styles.input} value={draft.title} onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))} />
-      <input style={styles.input} value={draft.slug} onChange={(e) => setDraft((s) => ({ ...s, slug: e.target.value }))} />
-      <input style={styles.input} value={draft.heroImageUrl} onChange={(e) => setDraft((s) => ({ ...s, heroImageUrl: e.target.value }))} placeholder="Flyer URL" />
+      <input
+        style={styles.input}
+        value={draft.title}
+        onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))}
+      />
+
+      <div style={styles.readonlyBox}>{derivedSlug || "—"}</div>
+
+      <input
+        style={styles.input}
+        value={draft.heroImageUrl}
+        onChange={(e) => setDraft((s) => ({ ...s, heroImageUrl: e.target.value }))}
+        placeholder="Flyer URL"
+      />
 
       <select
         style={styles.input}
@@ -329,6 +381,14 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
   },
+  readonlyBox: {
+    width: "100%",
+    background: "#0f141a",
+    border: "1px solid #2a3647",
+    color: "#9aa4af",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
   textarea: {
     width: "100%",
     minHeight: 90,
@@ -338,6 +398,10 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
     resize: "vertical",
+  },
+  helperText: {
+    fontSize: 13,
+    color: "#9aa4af",
   },
   button: {
     background: "#2563eb",
@@ -358,7 +422,6 @@ const styles = {
   message: {
     marginTop: 12,
     color: "#8fd19e",
-    whiteSpace: "pre-wrap",
   },
   mutedText: {
     color: "#9aa4af",

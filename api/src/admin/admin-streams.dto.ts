@@ -55,6 +55,10 @@ export class CreateStreamDto {
 
   @IsOptional()
   @IsString()
+  youtubeUrl?: string;
+
+  @IsOptional()
+  @IsString()
   youtubeVideoId?: string;
 
   @IsOptional()
@@ -92,6 +96,10 @@ export class UpdateStreamDto {
   @IsOptional()
   @IsString()
   playbackDashUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeUrl?: string;
 
   @IsOptional()
   @IsString()

@@ -41,6 +41,10 @@ export class SubmitStreamDto {
 
   @IsOptional()
   @IsString()
+  youtubeUrl?: string;
+
+  @IsOptional()
+  @IsString()
   youtubeVideoId?: string;
 }
 
@@ -66,6 +70,10 @@ export class UpdateSubmittedStreamDto {
   @IsOptional()
   @IsString()
   playbackDashUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeUrl?: string;
 
   @IsOptional()
   @IsString()

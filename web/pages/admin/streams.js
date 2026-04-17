@@ -1,7 +1,48 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../components/AdminLayout";
 import { adminFetch } from "../../lib/adminFetch";
 import { requireAdminPage } from "../../lib/requireAdminPage";
+
+function parseYouTubeUrl(input = "") {
+  try {
+    const url = new URL(input.trim());
+
+    if (url.hostname.includes("youtu.be")) {
+      const id = url.pathname.replace("/", "").trim();
+      return id ? { videoId: id } : null;
+    }
+
+    if (url.hostname.includes("youtube.com")) {
+      if (url.searchParams.get("v")) {
+        return { videoId: url.searchParams.get("v") };
+      }
+
+      const liveMatch = url.pathname.match(/\/live\/([^/?]+)/);
+      if (liveMatch?.[1]) {
+        return { videoId: liveMatch[1] };
+      }
+
+      const embedMatch = url.pathname.match(/\/embed\/([^/?]+)/);
+      if (embedMatch?.[1]) {
+        return { videoId: embedMatch[1] };
+      }
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function fallbackTitleFromYouTubeUrl(input = "") {
+  try {
+    const url = new URL(input.trim());
+    const last = url.pathname.split("/").filter(Boolean).pop();
+    return last ? `YouTube Feed ${last}` : "";
+  } catch {
+    return "";
+  }
+}
 
 export default function AdminStreamsPage() {
   const [events, setEvents] = useState([]);
@@ -10,15 +51,21 @@ export default function AdminStreamsPage() {
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
     sourceType: "YOUTUBE",
-    provider: "custom",
     title: "",
     isPrimary: false,
     priority: 0,
     playbackHlsUrl: "",
     playbackDashUrl: "",
+    youtubeUrl: "",
     youtubeVideoId: "",
-    lifecycle: "CREATED",
   });
+
+  const isYoutube = form.sourceType === "YOUTUBE";
+  const canSubmit = useMemo(() => {
+    if (!selectedEventId) return false;
+    if (isYoutube) return !!form.youtubeUrl.trim();
+    return !!form.playbackHlsUrl.trim() || !!form.playbackDashUrl.trim();
+  }, [selectedEventId, isYoutube, form]);
 
   async function loadEvents() {
     const res = await adminFetch("/api/admin/events");
@@ -50,6 +97,32 @@ export default function AdminStreamsPage() {
     if (selectedEventId) loadStreams(selectedEventId);
   }, [selectedEventId]);
 
+  function resetForm() {
+    setForm({
+      sourceType: "YOUTUBE",
+      title: "",
+      isPrimary: false,
+      priority: 0,
+      playbackHlsUrl: "",
+      playbackDashUrl: "",
+      youtubeUrl: "",
+      youtubeVideoId: "",
+    });
+  }
+
+  function handleYouTubeUrlChange(value) {
+    const parsed = parseYouTubeUrl(value);
+    const nextVideoId = parsed?.videoId || "";
+    const nextFallbackTitle = form.title || fallbackTitleFromYouTubeUrl(value);
+
+    setForm((s) => ({
+      ...s,
+      youtubeUrl: value,
+      youtubeVideoId: nextVideoId,
+      title: s.title || nextFallbackTitle,
+    }));
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     setMessage("");
@@ -59,13 +132,21 @@ export default function AdminStreamsPage() {
       return;
     }
 
+    const payload = {
+      sourceType: form.sourceType,
+      title: form.title.trim() || undefined,
+      isPrimary: form.isPrimary,
+      priority: Number(form.priority || 0),
+      youtubeUrl: isYoutube ? form.youtubeUrl.trim() : undefined,
+      youtubeVideoId: isYoutube ? form.youtubeVideoId.trim() : undefined,
+      playbackHlsUrl: !isYoutube ? form.playbackHlsUrl.trim() || undefined : undefined,
+      playbackDashUrl: !isYoutube ? form.playbackDashUrl.trim() || undefined : undefined,
+    };
+
     const res = await adminFetch(`/api/admin/events/${selectedEventId}/streams`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        priority: Number(form.priority || 0),
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
@@ -74,17 +155,7 @@ export default function AdminStreamsPage() {
     }
 
     setMessage("Stream created.");
-    setForm({
-      sourceType: "YOUTUBE",
-      provider: "custom",
-      title: "",
-      isPrimary: false,
-      priority: 0,
-      playbackHlsUrl: "",
-      playbackDashUrl: "",
-      youtubeVideoId: "",
-      lifecycle: "CREATED",
-    });
+    resetForm();
     loadStreams(selectedEventId);
   }
 
@@ -126,27 +197,74 @@ export default function AdminStreamsPage() {
           </div>
 
           <form onSubmit={handleCreate} style={styles.form}>
-            <select style={styles.input} value={form.sourceType} onChange={(e) => setForm((s) => ({ ...s, sourceType: e.target.value }))}>
+            <select
+              style={styles.input}
+              value={form.sourceType}
+              onChange={(e) =>
+                setForm((s) => ({
+                  ...s,
+                  sourceType: e.target.value,
+                  playbackHlsUrl: "",
+                  playbackDashUrl: "",
+                  youtubeUrl: "",
+                  youtubeVideoId: "",
+                }))
+              }
+            >
               <option value="YOUTUBE">YOUTUBE</option>
               <option value="EXTERNAL_HLS">EXTERNAL_HLS</option>
-              <option value="MANAGED_LIVE">MANAGED_LIVE</option>
             </select>
 
-            <input style={styles.input} placeholder="Provider" value={form.provider} onChange={(e) => setForm((s) => ({ ...s, provider: e.target.value }))} />
-            <input style={styles.input} placeholder="Title" value={form.title} onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} />
-            <input style={styles.input} type="number" placeholder="Priority" value={form.priority} onChange={(e) => setForm((s) => ({ ...s, priority: e.target.value }))} />
-            <input style={styles.input} placeholder="YouTube Video ID" value={form.youtubeVideoId} onChange={(e) => setForm((s) => ({ ...s, youtubeVideoId: e.target.value }))} />
-            <input style={styles.input} placeholder="Playback HLS URL" value={form.playbackHlsUrl} onChange={(e) => setForm((s) => ({ ...s, playbackHlsUrl: e.target.value }))} />
-            <input style={styles.input} placeholder="Playback DASH URL" value={form.playbackDashUrl} onChange={(e) => setForm((s) => ({ ...s, playbackDashUrl: e.target.value }))} />
+            {isYoutube ? (
+              <>
+                <input
+                  style={styles.input}
+                  placeholder="YouTube URL"
+                  value={form.youtubeUrl}
+                  onChange={(e) => handleYouTubeUrlChange(e.target.value)}
+                />
 
-            <select style={styles.input} value={form.lifecycle} onChange={(e) => setForm((s) => ({ ...s, lifecycle: e.target.value }))}>
-              <option value="CREATED">CREATED</option>
-              <option value="READY">READY</option>
-              <option value="LIVE">LIVE</option>
-              <option value="ENDED">ENDED</option>
-              <option value="DISABLED">DISABLED</option>
-              <option value="ERROR">ERROR</option>
-            </select>
+                <input
+                  style={styles.input}
+                  placeholder="Title"
+                  value={form.title}
+                  onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
+                />
+
+                <div style={styles.helperText}>
+                  Parsed YouTube Video ID: <strong>{form.youtubeVideoId || "—"}</strong>
+                </div>
+              </>
+            ) : (
+              <>
+                <input
+                  style={styles.input}
+                  placeholder="Title"
+                  value={form.title}
+                  onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
+                />
+                <input
+                  style={styles.input}
+                  placeholder="Playback HLS URL"
+                  value={form.playbackHlsUrl}
+                  onChange={(e) => setForm((s) => ({ ...s, playbackHlsUrl: e.target.value }))}
+                />
+                <input
+                  style={styles.input}
+                  placeholder="Playback DASH URL"
+                  value={form.playbackDashUrl}
+                  onChange={(e) => setForm((s) => ({ ...s, playbackDashUrl: e.target.value }))}
+                />
+              </>
+            )}
+
+            <input
+              style={styles.input}
+              type="number"
+              placeholder="Priority"
+              value={form.priority}
+              onChange={(e) => setForm((s) => ({ ...s, priority: e.target.value }))}
+            />
 
             <label style={styles.checkboxRow}>
               <input
@@ -157,7 +275,13 @@ export default function AdminStreamsPage() {
               Primary stream
             </label>
 
-            <button type="submit" style={styles.button}>Create Stream</button>
+            <button
+              type="submit"
+              style={{ ...styles.button, ...(canSubmit ? {} : styles.buttonDisabled) }}
+              disabled={!canSubmit}
+            >
+              Create Stream
+            </button>
           </form>
 
           {message ? <p style={styles.message}>{message}</p> : null}
@@ -182,6 +306,8 @@ export default function AdminStreamsPage() {
 }
 
 function StreamRow({ stream, onSave }) {
+  const isYoutube = stream.sourceType === "YOUTUBE";
+
   const [draft, setDraft] = useState({
     title: stream.title || "",
     isPrimary: !!stream.isPrimary,
@@ -189,28 +315,59 @@ function StreamRow({ stream, onSave }) {
     playbackHlsUrl: stream.playbackHlsUrl || "",
     playbackDashUrl: stream.playbackDashUrl || "",
     youtubeVideoId: stream.youtubeVideoId || "",
-    lifecycle: stream.lifecycle || "CREATED",
   });
 
   return (
     <div style={styles.rowCard}>
-      <input style={styles.input} value={draft.title} onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))} />
-      <input style={styles.input} type="number" value={draft.priority} onChange={(e) => setDraft((s) => ({ ...s, priority: Number(e.target.value) }))} />
-      <input style={styles.input} placeholder="YouTube Video ID" value={draft.youtubeVideoId} onChange={(e) => setDraft((s) => ({ ...s, youtubeVideoId: e.target.value }))} />
-      <input style={styles.input} placeholder="Playback HLS URL" value={draft.playbackHlsUrl} onChange={(e) => setDraft((s) => ({ ...s, playbackHlsUrl: e.target.value }))} />
-      <select style={styles.input} value={draft.lifecycle} onChange={(e) => setDraft((s) => ({ ...s, lifecycle: e.target.value }))}>
-        <option value="CREATED">CREATED</option>
-        <option value="READY">READY</option>
-        <option value="LIVE">LIVE</option>
-        <option value="ENDED">ENDED</option>
-        <option value="DISABLED">DISABLED</option>
-        <option value="ERROR">ERROR</option>
-      </select>
+      <input
+        style={styles.input}
+        value={draft.title}
+        onChange={(e) => setDraft((s) => ({ ...s, title: e.target.value }))}
+      />
+
+      <input
+        style={styles.input}
+        type="number"
+        value={draft.priority}
+        onChange={(e) => setDraft((s) => ({ ...s, priority: Number(e.target.value) }))}
+      />
+
+      {isYoutube ? (
+        <input
+          style={styles.input}
+          placeholder="YouTube Video ID"
+          value={draft.youtubeVideoId}
+          onChange={(e) => setDraft((s) => ({ ...s, youtubeVideoId: e.target.value }))}
+        />
+      ) : (
+        <>
+          <input
+            style={styles.input}
+            placeholder="Playback HLS URL"
+            value={draft.playbackHlsUrl}
+            onChange={(e) => setDraft((s) => ({ ...s, playbackHlsUrl: e.target.value }))}
+          />
+          <input
+            style={styles.input}
+            placeholder="Playback DASH URL"
+            value={draft.playbackDashUrl}
+            onChange={(e) => setDraft((s) => ({ ...s, playbackDashUrl: e.target.value }))}
+          />
+        </>
+      )}
+
       <label style={styles.checkboxRow}>
-        <input type="checkbox" checked={draft.isPrimary} onChange={(e) => setDraft((s) => ({ ...s, isPrimary: e.target.checked }))} />
+        <input
+          type="checkbox"
+          checked={draft.isPrimary}
+          onChange={(e) => setDraft((s) => ({ ...s, isPrimary: e.target.checked }))}
+        />
         Primary
       </label>
-      <button style={styles.secondaryButton} onClick={() => onSave(stream.id, draft)}>Save</button>
+
+      <button style={styles.secondaryButton} onClick={() => onSave(stream.id, draft)}>
+        Save
+      </button>
     </div>
   );
 }
@@ -253,6 +410,10 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
   },
+  helperText: {
+    fontSize: 13,
+    color: "#9aa4af",
+  },
   checkboxRow: {
     display: "flex",
     gap: 10,
@@ -275,6 +436,10 @@ const styles = {
     borderRadius: 10,
     padding: "12px 14px",
     cursor: "pointer",
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
   },
   message: {
     marginTop: 12,

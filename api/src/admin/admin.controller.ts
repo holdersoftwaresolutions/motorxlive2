@@ -23,12 +23,42 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
 
+function extractYouTubeVideoId(input?: string | null): string | null {
+  if (!input) return null;
+
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+
+    if (url.hostname.includes("youtu.be")) {
+      const id = url.pathname.replace("/", "").trim();
+      return id || null;
+    }
+
+    if (url.hostname.includes("youtube.com")) {
+      const fromQuery = url.searchParams.get("v");
+      if (fromQuery) return fromQuery;
+
+      const liveMatch = url.pathname.match(/\/live\/([^/?]+)/);
+      if (liveMatch?.[1]) return liveMatch[1];
+
+      const embedMatch = url.pathname.match(/\/embed\/([^/?]+)/);
+      if (embedMatch?.[1]) return embedMatch[1];
+    }
+  } catch {
+    // not a valid URL, fall through
+  }
+
+  return trimmed || null;
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
 @Controller("admin")
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
-
 
   // ---------- USERS ----------
 
@@ -211,9 +241,28 @@ export class AdminController {
     });
   }
 
-
   @Post("events/:id/streams")
   async createStream(@Param("id") eventId: string, @Body() dto: CreateStreamDto) {
+    const youtubeVideoId =
+      dto.sourceType === "YOUTUBE"
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : null;
+
+    if (dto.sourceType === "YOUTUBE" && !youtubeVideoId) {
+      return { ok: false, error: "A valid YouTube URL or video ID is required for YOUTUBE streams" };
+    }
+
+    if (
+      dto.sourceType === "EXTERNAL_HLS" &&
+      !dto.playbackHlsUrl &&
+      !dto.playbackDashUrl
+    ) {
+      return {
+        ok: false,
+        error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS streams",
+      };
+    }
+
     return this.prisma.stream.create({
       data: {
         eventId,
@@ -222,29 +271,34 @@ export class AdminController {
         rejectionReason: null,
         reviewedAt: new Date(),
         sourceType: dto.sourceType as any,
-        provider: dto.provider || "custom",
-        title: dto.title,
+        provider: dto.sourceType === "YOUTUBE" ? "youtube" : dto.provider || "custom",
+        title: dto.title?.trim() || "Live Feed",
         isPrimary: dto.isPrimary ?? false,
         priority: dto.priority ?? 0,
-        playbackHlsUrl: dto.playbackHlsUrl,
-        playbackDashUrl: dto.playbackDashUrl,
-        youtubeVideoId: dto.youtubeVideoId,
-        lifecycle: dto.lifecycle as any,
+        playbackHlsUrl: dto.playbackHlsUrl || null,
+        playbackDashUrl: dto.playbackDashUrl || null,
+        youtubeVideoId,
+        lifecycle: (dto.lifecycle as any) || "READY",
       },
     });
   }
 
   @Patch("streams/:id")
   async updateStream(@Param("id") id: string, @Body() dto: UpdateStreamDto) {
+    const resolvedYoutubeVideoId =
+      dto.youtubeVideoId !== undefined || dto.youtubeUrl !== undefined
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : undefined;
+
     return this.prisma.stream.update({
       where: { id },
       data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.title !== undefined ? { title: dto.title?.trim() || "Live Feed" } : {}),
         ...(dto.isPrimary !== undefined ? { isPrimary: dto.isPrimary } : {}),
         ...(dto.priority !== undefined ? { priority: dto.priority } : {}),
-        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
-        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
+        ...(resolvedYoutubeVideoId !== undefined ? { youtubeVideoId: resolvedYoutubeVideoId || null } : {}),
         ...(dto.lifecycle !== undefined ? { lifecycle: dto.lifecycle as any } : {}),
       },
     });
@@ -324,6 +378,26 @@ export class AdminController {
 
   @Post("events/:id/videos")
   async createVideo(@Param("id") eventId: string, @Body() dto: any) {
+    const youtubeVideoId =
+      dto.sourceType === "YOUTUBE"
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : null;
+
+    if (dto.sourceType === "YOUTUBE" && !youtubeVideoId) {
+      return { ok: false, error: "A valid YouTube URL or video ID is required for YOUTUBE videos" };
+    }
+
+    if (
+      dto.sourceType === "EXTERNAL_HLS" &&
+      !dto.playbackHlsUrl &&
+      !dto.playbackDashUrl
+    ) {
+      return {
+        ok: false,
+        error: "playbackHlsUrl or playbackDashUrl is required for EXTERNAL_HLS videos",
+      };
+    }
+
     return this.prisma.video.create({
       data: {
         eventId,
@@ -332,12 +406,12 @@ export class AdminController {
         rejectionReason: null,
         reviewedAt: new Date(),
         sourceType: dto.sourceType as any,
-        provider: dto.provider || "custom",
-        title: dto.title,
-        description: dto.description,
-        playbackHlsUrl: dto.playbackHlsUrl,
-        playbackDashUrl: dto.playbackDashUrl,
-        youtubeVideoId: dto.youtubeVideoId,
+        provider: dto.sourceType === "YOUTUBE" ? "youtube" : dto.provider || "custom",
+        title: dto.title?.trim() || "Untitled Video",
+        description: dto.description?.trim() || null,
+        playbackHlsUrl: dto.playbackHlsUrl || null,
+        playbackDashUrl: dto.playbackDashUrl || null,
+        youtubeVideoId,
         durationSeconds: dto.durationSeconds,
         publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null,
         status: dto.status || "READY",
@@ -347,14 +421,19 @@ export class AdminController {
 
   @Patch("videos/:id")
   async updateVideo(@Param("id") id: string, @Body() dto: any) {
+    const resolvedYoutubeVideoId =
+      dto.youtubeVideoId !== undefined || dto.youtubeUrl !== undefined
+        ? extractYouTubeVideoId(dto.youtubeVideoId || dto.youtubeUrl)
+        : undefined;
+
     return this.prisma.video.update({
       where: { id },
       data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl } : {}),
-        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl } : {}),
-        ...(dto.youtubeVideoId !== undefined ? { youtubeVideoId: dto.youtubeVideoId } : {}),
+        ...(dto.title !== undefined ? { title: dto.title?.trim() || "Untitled Video" } : {}),
+        ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+        ...(dto.playbackHlsUrl !== undefined ? { playbackHlsUrl: dto.playbackHlsUrl || null } : {}),
+        ...(dto.playbackDashUrl !== undefined ? { playbackDashUrl: dto.playbackDashUrl || null } : {}),
+        ...(resolvedYoutubeVideoId !== undefined ? { youtubeVideoId: resolvedYoutubeVideoId || null } : {}),
         ...(dto.durationSeconds !== undefined ? { durationSeconds: dto.durationSeconds } : {}),
         ...(dto.publishedAt !== undefined
           ? { publishedAt: dto.publishedAt ? new Date(dto.publishedAt) : null }
