@@ -25,7 +25,14 @@ export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+
   const [uploading, setUploading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [selectedFlyerName, setSelectedFlyerName] = useState("");
+  const [flyerChosen, setFlyerChosen] = useState(false);
+  const [flyerUploaded, setFlyerUploaded] = useState(false);
+
   const flyerInputRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -42,9 +49,17 @@ export default function AdminEventsPage() {
 
   const derivedSlug = useMemo(() => slugify(form.title), [form.title]);
 
+  const createDisabled =
+    creating ||
+    uploading ||
+    !form.title.trim() ||
+    !form.startDate ||
+    (flyerChosen && !flyerUploaded);
+
   async function loadAll() {
     try {
       setMessage("");
+      setMessageType("success");
 
       const [categoriesRes, eventsRes] = await Promise.all([
         adminFetch("/api/admin/categories"),
@@ -69,6 +84,7 @@ export default function AdminEventsPage() {
       setEvents(Array.isArray(eventsJson) ? eventsJson : []);
     } catch (err) {
       setMessage(err.message || "Failed to load categories/events.");
+      setMessageType("error");
       setCategories([]);
       setEvents([]);
     }
@@ -78,60 +94,7 @@ export default function AdminEventsPage() {
     loadAll();
   }, []);
 
-  async function handleFlyerSelected(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setUploading(true);
-      setMessage("");
-      const publicUrl = await uploadFlyer(file);
-      setForm((s) => ({
-        ...s,
-        heroImageUrl: publicUrl,
-      }));
-      setMessage("Flyer uploaded successfully.");
-    } catch (err) {
-      setMessage(err.message || "Failed to upload flyer.");
-    } finally {
-      setUploading(false);
-      if (flyerInputRef.current) {
-        flyerInputRef.current.value = "";
-      }
-    }
-  }
-
-  async function handleCreate(e) {
-    e.preventDefault();
-    setMessage("");
-
-    const payload = {
-      title: form.title.trim(),
-      slug: derivedSlug,
-      description: form.description || undefined,
-      startAt: toStartOfDayIso(form.startDate),
-      endAt: toEndOfDayIso(form.endDate || form.startDate),
-      heroImageUrl: form.heroImageUrl || undefined,
-      categoryId: form.categoryId || undefined,
-      venueName: form.venueName || undefined,
-      city: form.city || undefined,
-      state: form.state || undefined,
-    };
-
-    const res = await adminFetch("/api/admin/events", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const text = await res.text();
-
-    if (!res.ok) {
-      setMessage(`Failed to create event: ${text}`);
-      return;
-    }
-
-    setMessage("Event created.");
+  function resetForm() {
     setForm({
       title: "",
       description: "",
@@ -143,7 +106,103 @@ export default function AdminEventsPage() {
       city: "",
       state: "",
     });
-    loadAll();
+    setSelectedFlyerName("");
+    setFlyerChosen(false);
+    setFlyerUploaded(false);
+
+    if (flyerInputRef.current) {
+      flyerInputRef.current.value = "";
+    }
+  }
+
+  async function handleFlyerSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFlyerName(file.name);
+    setFlyerChosen(true);
+    setFlyerUploaded(false);
+    setMessage("");
+    setMessageType("success");
+
+    try {
+      setUploading(true);
+      const publicUrl = await uploadFlyer(file);
+
+      setForm((s) => ({
+        ...s,
+        heroImageUrl: publicUrl,
+      }));
+
+      setFlyerUploaded(true);
+      setMessage("Flyer uploaded successfully.");
+      setMessageType("success");
+    } catch (err) {
+      setFlyerUploaded(false);
+      setForm((s) => ({
+        ...s,
+        heroImageUrl: "",
+      }));
+      setMessage(err.message || "Failed to upload flyer.");
+      setMessageType("error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    setMessage("");
+
+    if (uploading) {
+      setMessage("Please wait for the flyer upload to finish.");
+      setMessageType("error");
+      return;
+    }
+
+    if (flyerChosen && !flyerUploaded) {
+      setMessage("Please upload the flyer successfully before creating the event.");
+      setMessageType("error");
+      return;
+    }
+
+    try {
+      setCreating(true);
+
+      const payload = {
+        title: form.title.trim(),
+        slug: derivedSlug,
+        description: form.description?.trim() || undefined,
+        startAt: toStartOfDayIso(form.startDate),
+        endAt: toEndOfDayIso(form.endDate || form.startDate),
+        heroImageUrl: form.heroImageUrl || undefined,
+        categoryId: form.categoryId || undefined,
+        venueName: form.venueName?.trim() || undefined,
+        city: form.city?.trim() || undefined,
+        state: form.state?.trim() || undefined,
+      };
+
+      const res = await adminFetch("/api/admin/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+
+      if (!res.ok) {
+        setMessage(`Failed to create event: ${text}`);
+        setMessageType("error");
+        return;
+      }
+
+      setMessage("Event created.");
+      setMessageType("success");
+      resetForm();
+      loadAll();
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function updateEvent(id, patch) {
@@ -162,10 +221,12 @@ export default function AdminEventsPage() {
 
     if (!res.ok) {
       setMessage(`Failed to update event: ${text}`);
+      setMessageType("error");
       return;
     }
 
     setMessage("Event updated.");
+    setMessageType("success");
     loadAll();
   }
 
@@ -242,36 +303,85 @@ export default function AdminEventsPage() {
               ))}
             </select>
 
+            <div style={styles.flyerSection}>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => flyerInputRef.current?.click()}
+                disabled={uploading || creating}
+              >
+                {uploading
+                  ? "Uploading Flyer..."
+                  : flyerUploaded
+                  ? "Replace Flyer"
+                  : "Choose Flyer"}
+              </button>
+
+              <input
+                ref={flyerInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleFlyerSelected}
+              />
+
+              <div style={styles.flyerStatus}>
+                {!flyerChosen && !uploading ? (
+                  <span style={styles.mutedText}>No flyer selected yet.</span>
+                ) : null}
+
+                {flyerChosen && selectedFlyerName ? (
+                  <div style={styles.helperText}>
+                    Selected: <strong>{selectedFlyerName}</strong>
+                  </div>
+                ) : null}
+
+                {uploading ? (
+                  <div style={styles.helperText}>Uploading flyer...</div>
+                ) : null}
+
+                {flyerUploaded && !uploading ? (
+                  <div style={styles.successText}>Flyer ready.</div>
+                ) : null}
+              </div>
+
+              {form.heroImageUrl ? (
+                <div style={styles.previewCard}>
+                  <img
+                    src={form.heroImageUrl}
+                    alt="Flyer preview"
+                    style={styles.previewImage}
+                  />
+                </div>
+              ) : null}
+            </div>
+
             <button
-              type="button"
-              style={styles.secondaryButton}
-              onClick={() => flyerInputRef.current?.click()}
-              disabled={uploading}
+              type="submit"
+              style={{
+                ...styles.button,
+                ...(createDisabled ? styles.buttonDisabled : {}),
+              }}
+              disabled={createDisabled}
             >
-              {uploading ? "Uploading..." : "Choose Flyer"}
-            </button>
-
-            <input
-              ref={flyerInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleFlyerSelected}
-            />
-
-            <input
-              style={styles.input}
-              placeholder="Flyer URL"
-              value={form.heroImageUrl}
-              onChange={(e) => setForm((s) => ({ ...s, heroImageUrl: e.target.value }))}
-            />
-
-            <button type="submit" style={styles.button} disabled={uploading}>
-              Create Event
+              {uploading
+                ? "Waiting for Flyer Upload..."
+                : creating
+                ? "Creating Event..."
+                : "Create Event"}
             </button>
           </form>
 
-          {message ? <p style={styles.message}>{message}</p> : null}
+          {message ? (
+            <p
+              style={{
+                ...styles.message,
+                ...(messageType === "error" ? styles.errorMessage : {}),
+              }}
+            >
+              {message}
+            </p>
+          ) : null}
         </section>
 
         <section style={styles.panel}>
@@ -403,6 +513,30 @@ const styles = {
     fontSize: 13,
     color: "#9aa4af",
   },
+  flyerSection: {
+    display: "grid",
+    gap: 10,
+  },
+  flyerStatus: {
+    display: "grid",
+    gap: 4,
+  },
+  previewCard: {
+    background: "#0f141a",
+    border: "1px solid #2a3647",
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  previewImage: {
+    display: "block",
+    width: "100%",
+    maxHeight: 240,
+    objectFit: "cover",
+  },
+  successText: {
+    color: "#8fd19e",
+    fontSize: 13,
+  },
   button: {
     background: "#2563eb",
     color: "#fff",
@@ -419,9 +553,16 @@ const styles = {
     padding: "12px 14px",
     cursor: "pointer",
   },
+  buttonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+  },
   message: {
     marginTop: 12,
     color: "#8fd19e",
+  },
+  errorMessage: {
+    color: "#ffb4b4",
   },
   mutedText: {
     color: "#9aa4af",
