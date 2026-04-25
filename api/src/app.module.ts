@@ -20,6 +20,7 @@ import { ContributorController } from "./contributor/contributor.controller";
 
 import { YouTubeModule } from "./youtube/youtube.module";
 import { YouTubeController } from "./youtube/youtube.controller";
+import { YouTubeDiscoveryModule } from "./youtube-discovery/youtube-discovery.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { YouTubeController } from "./youtube/youtube.controller";
     MapboxLocationModule,
     AuthModule,
     YouTubeModule,
+    YouTubeDiscoveryModule,
   ],
   controllers: [
     HealthController,

@@ -117,6 +117,74 @@ model Video {
   @@index([submittedByUserId])
 }
 
+model YouTubeDiscoveredChannel {
+  id                 String   @id @default(cuid())
+  youtubeChannelId   String   @unique
+  title              String
+  description        String?
+  thumbnailUrl       String?
+  channelUrl         String?
+  category           YouTubeChannelCategory @default(GENERAL_MOTORSPORTS)
+  discoveryStatus    YouTubeDiscoveryStatus @default(DISCOVERED)
+  score              Int      @default(0)
+  scoreReasons       Json?
+  recentLiveCount    Int      @default(0)
+  upcomingLiveCount  Int      @default(0)
+  completedLiveCount Int      @default(0)
+  subscriberCount    Int?
+  videoCount         Int?
+  viewCount          Int?
+  uploadsPlaylistId  String?
+  autoIngestStreams  Boolean  @default(false)
+  autoIngestVideos   Boolean  @default(false)
+  autoIngestPodcasts Boolean  @default(false)
+  isFeatured         Boolean  @default(false)
+  priority           Int      @default(0)
+  lastDiscoveredAt   DateTime @default(now())
+  lastMonitoredAt    DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  videos             YouTubeDiscoveredVideo[]
+}
+
+model YouTubeDiscoveredVideo {
+  id                   String   @id @default(cuid())
+  youtubeVideoId        String   @unique
+  youtubeChannelId      String
+  channel               YouTubeDiscoveredChannel @relation(fields: [youtubeChannelId], references: [youtubeChannelId])
+  title                 String
+  description           String?
+  thumbnailUrl          String?
+  watchUrl              String
+  embedUrl              String
+  liveBroadcastContent  String?
+  scheduledStartTime    DateTime?
+  actualStartTime       DateTime?
+  actualEndTime         DateTime?
+  publishedAt           DateTime?
+  embeddable            Boolean?
+  duration              String?
+  viewCount             Int?
+  likeCount             Int?
+  category              YouTubeChannelCategory?
+  ingestionStatus       YouTubeIngestionStatus @default(DISCOVERED)
+  motorXStreamId        String?
+  motorXVideoId         String?
+  score                 Int      @default(0)
+  scoreReasons          Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model YouTubeApiUsageLog {
+  id        String   @id @default(cuid())
+  method    String
+  quotaCost Int
+  query     String?
+  createdAt DateTime @default(now())
+}
+
 enum UserRole {
   ADMIN
   STREAMER
@@ -155,4 +223,30 @@ enum StreamLifecycleStatus {
   ENDED
   DISABLED
   ERROR
+}
+
+enum YouTubeDiscoveryStatus {
+  DISCOVERED
+  APPROVED
+  IGNORED
+  BLOCKED
+}
+
+enum YouTubeIngestionStatus {
+  DISCOVERED
+  READY_TO_INGEST
+  INGESTED
+  IGNORED
+  FAILED
+}
+
+enum YouTubeChannelCategory {
+  DRAG_RACING
+  OFFROAD
+  SXS_UTV
+  MOTORSPORTS_PODCAST
+  GENERAL_MOTORSPORTS
+  TRACK_CHANNEL
+  EVENT_PROMOTER
+  CREATOR_MEDIA
 }

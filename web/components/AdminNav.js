@@ -8,6 +8,9 @@ const links = [
   { href: "/admin/streams", label: "Streams" },
   { href: "/admin/videos", label: "Videos" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/youtube-discovery", label: "YouTube Discovery" },
+  { href: "/admin/youtube-channels", label: "Approved YouTube Channels" },
+  { href: "/admin/youtube-videos", label: "YouTube Videos" },
 ];
 
 export default function AdminNav() {
