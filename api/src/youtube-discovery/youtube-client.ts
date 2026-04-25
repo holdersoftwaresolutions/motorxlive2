@@ -11,6 +11,16 @@ export class YouTubeClient {
     }
   }
 
+  private chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+
+    return chunks;
+  }
+
   async searchVideos(params: {
     query: string;
     eventType?: "live" | "upcoming" | "completed";
@@ -42,52 +52,92 @@ export class YouTubeClient {
 
   async getVideos(videoIds: string[]) {
     this.requireApiKey();
-    if (!videoIds.length) return { items: [] };
 
-    const url = new URL(`${this.baseUrl}/videos`);
-    url.searchParams.set("key", this.apiKey!);
-    url.searchParams.set(
-      "part",
-      "snippet,status,statistics,contentDetails,liveStreamingDetails"
+    const cleanIds = Array.from(
+      new Set(
+        videoIds
+          .map((id) => String(id || "").trim())
+          .filter((id) => id.length > 0)
+      )
     );
-    url.searchParams.set("id", videoIds.join(","));
 
-    const res = await fetch(url.toString());
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(JSON.stringify(json));
+    if (!cleanIds.length) {
+      return { items: [] };
     }
 
-    return json;
+    const allItems: any[] = [];
+
+    for (const batch of this.chunk(cleanIds, 50)) {
+      const url = new URL(`${this.baseUrl}/videos`);
+      url.searchParams.set("key", this.apiKey!);
+      url.searchParams.set(
+        "part",
+        "snippet,status,statistics,contentDetails,liveStreamingDetails"
+      );
+      url.searchParams.set("id", batch.join(","));
+
+      const res = await fetch(url.toString());
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(JSON.stringify(json));
+      }
+
+      allItems.push(...(json.items || []));
+    }
+
+    return { items: allItems };
   }
 
   async getChannels(channelIds: string[]) {
     this.requireApiKey();
-    if (!channelIds.length) return { items: [] };
 
-    const url = new URL(`${this.baseUrl}/channels`);
-    url.searchParams.set("key", this.apiKey!);
-    url.searchParams.set("part", "snippet,statistics,contentDetails");
-    url.searchParams.set("id", channelIds.join(","));
+    const cleanIds = Array.from(
+      new Set(
+        channelIds
+          .map((id) => String(id || "").trim())
+          .filter((id) => id.length > 0)
+      )
+    );
 
-    const res = await fetch(url.toString());
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(JSON.stringify(json));
+    if (!cleanIds.length) {
+      return { items: [] };
     }
 
-    return json;
+    const allItems: any[] = [];
+
+    for (const batch of this.chunk(cleanIds, 50)) {
+      const url = new URL(`${this.baseUrl}/channels`);
+      url.searchParams.set("key", this.apiKey!);
+      url.searchParams.set("part", "snippet,statistics,contentDetails");
+      url.searchParams.set("id", batch.join(","));
+
+      const res = await fetch(url.toString());
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(JSON.stringify(json));
+      }
+
+      allItems.push(...(json.items || []));
+    }
+
+    return { items: allItems };
   }
 
   async getRecentUploads(uploadsPlaylistId: string, maxResults = 10) {
     this.requireApiKey();
 
+    const cleanPlaylistId = String(uploadsPlaylistId || "").trim();
+
+    if (!cleanPlaylistId) {
+      return { items: [] };
+    }
+
     const url = new URL(`${this.baseUrl}/playlistItems`);
     url.searchParams.set("key", this.apiKey!);
     url.searchParams.set("part", "snippet,contentDetails");
-    url.searchParams.set("playlistId", uploadsPlaylistId);
+    url.searchParams.set("playlistId", cleanPlaylistId);
     url.searchParams.set("maxResults", String(maxResults));
 
     const res = await fetch(url.toString());
