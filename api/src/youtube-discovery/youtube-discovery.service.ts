@@ -57,12 +57,15 @@ export class YouTubeDiscoveryService {
 
         for (const item of search.items || []) {
           const videoId = item?.id?.videoId;
-          if (videoId) discoveredVideoIds.add(videoId);
+          if (typeof videoId === "string" && videoId.length > 0) {
+            discoveredVideoIds.add(videoId);
+          }
         }
       }
     }
 
-    const videoIds = Array.from(discoveredVideoIds);
+    const videoIds: string[] = Array.from(discoveredVideoIds);
+
     const videosResponse = await this.youtube.getVideos(videoIds);
 
     await this.prisma.youTubeApiUsageLog.create({
@@ -74,8 +77,16 @@ export class YouTubeDiscoveryService {
     });
 
     const videos = videosResponse.items || [];
-    const channelIds = Array.from(
-      new Set(videos.map((video: any) => video.snippet?.channelId).filter(Boolean))
+
+    const channelIds: string[] = Array.from(
+      new Set<string>(
+        videos
+          .map((video: any) => video?.snippet?.channelId)
+          .filter(
+            (channelId: unknown): channelId is string =>
+              typeof channelId === "string" && channelId.length > 0
+          )
+      )
     );
 
     const channelsResponse = await this.youtube.getChannels(channelIds);
@@ -91,8 +102,8 @@ export class YouTubeDiscoveryService {
     const channelVideoMap = new Map<string, any[]>();
 
     for (const video of videos) {
-      const channelId = video.snippet?.channelId;
-      if (!channelId) continue;
+      const channelId = video?.snippet?.channelId;
+      if (typeof channelId !== "string" || !channelId) continue;
 
       const list = channelVideoMap.get(channelId) || [];
       list.push(video);
@@ -106,32 +117,34 @@ export class YouTubeDiscoveryService {
       const relatedVideos = channelVideoMap.get(channelId) || [];
 
       const liveCount = relatedVideos.filter(
-        (v) => v.snippet?.liveBroadcastContent === "live"
+        (v) => v?.snippet?.liveBroadcastContent === "live"
       ).length;
 
       const upcomingCount = relatedVideos.filter(
-        (v) => v.snippet?.liveBroadcastContent === "upcoming"
+        (v) => v?.snippet?.liveBroadcastContent === "upcoming"
       ).length;
 
       const completedCount = relatedVideos.filter(
-        (v) => !!v.liveStreamingDetails?.actualEndTime
+        (v) => !!v?.liveStreamingDetails?.actualEndTime
       ).length;
 
       const embeddableCount = relatedVideos.filter(
-        (v) => v.status?.embeddable === true
+        (v) => v?.status?.embeddable === true
       ).length;
 
-      const videoTitles = relatedVideos.map((v) => v.snippet?.title).filter(Boolean);
+      const videoTitles = relatedVideos
+        .map((v) => v?.snippet?.title)
+        .filter((title: unknown): title is string => typeof title === "string");
 
       const category = classifyYouTubeChannel({
-        title: channel.snippet?.title,
-        description: channel.snippet?.description,
+        title: channel?.snippet?.title,
+        description: channel?.snippet?.description,
         videoTitles,
       });
 
       const scored = scoreYouTubeChannel({
-        title: channel.snippet?.title,
-        description: channel.snippet?.description,
+        title: channel?.snippet?.title,
+        description: channel?.snippet?.description,
         videoTitles,
         liveCount,
         upcomingCount,
@@ -141,16 +154,16 @@ export class YouTubeDiscoveryService {
       });
 
       const thumbnailUrl =
-        channel.snippet?.thumbnails?.high?.url ||
-        channel.snippet?.thumbnails?.medium?.url ||
-        channel.snippet?.thumbnails?.default?.url ||
+        channel?.snippet?.thumbnails?.high?.url ||
+        channel?.snippet?.thumbnails?.medium?.url ||
+        channel?.snippet?.thumbnails?.default?.url ||
         null;
 
       const saved = await this.prisma.youTubeDiscoveredChannel.upsert({
         where: { youtubeChannelId: channelId },
         update: {
-          title: channel.snippet?.title || "Untitled Channel",
-          description: channel.snippet?.description || null,
+          title: channel?.snippet?.title || "Untitled Channel",
+          description: channel?.snippet?.description || null,
           thumbnailUrl,
           channelUrl: `https://www.youtube.com/channel/${channelId}`,
           category,
@@ -159,23 +172,23 @@ export class YouTubeDiscoveryService {
           recentLiveCount: liveCount,
           upcomingLiveCount: upcomingCount,
           completedLiveCount: completedCount,
-          subscriberCount: channel.statistics?.subscriberCount
+          subscriberCount: channel?.statistics?.subscriberCount
             ? Number(channel.statistics.subscriberCount)
             : null,
-          videoCount: channel.statistics?.videoCount
+          videoCount: channel?.statistics?.videoCount
             ? Number(channel.statistics.videoCount)
             : null,
-          viewCount: channel.statistics?.viewCount
+          viewCount: channel?.statistics?.viewCount
             ? Number(channel.statistics.viewCount)
             : null,
           uploadsPlaylistId:
-            channel.contentDetails?.relatedPlaylists?.uploads || null,
+            channel?.contentDetails?.relatedPlaylists?.uploads || null,
           lastDiscoveredAt: new Date(),
         },
         create: {
           youtubeChannelId: channelId,
-          title: channel.snippet?.title || "Untitled Channel",
-          description: channel.snippet?.description || null,
+          title: channel?.snippet?.title || "Untitled Channel",
+          description: channel?.snippet?.description || null,
           thumbnailUrl,
           channelUrl: `https://www.youtube.com/channel/${channelId}`,
           category,
@@ -184,17 +197,17 @@ export class YouTubeDiscoveryService {
           recentLiveCount: liveCount,
           upcomingLiveCount: upcomingCount,
           completedLiveCount: completedCount,
-          subscriberCount: channel.statistics?.subscriberCount
+          subscriberCount: channel?.statistics?.subscriberCount
             ? Number(channel.statistics.subscriberCount)
             : null,
-          videoCount: channel.statistics?.videoCount
+          videoCount: channel?.statistics?.videoCount
             ? Number(channel.statistics.videoCount)
             : null,
-          viewCount: channel.statistics?.viewCount
+          viewCount: channel?.statistics?.viewCount
             ? Number(channel.statistics.viewCount)
             : null,
           uploadsPlaylistId:
-            channel.contentDetails?.relatedPlaylists?.uploads || null,
+            channel?.contentDetails?.relatedPlaylists?.uploads || null,
         },
       });
 
@@ -302,7 +315,7 @@ export class YouTubeDiscoveryService {
     });
   }
 
-    async listApprovedChannels() {
+  async listApprovedChannels() {
     return this.prisma.youTubeDiscoveredChannel.findMany({
       where: {
         discoveryStatus: "APPROVED",
@@ -395,9 +408,12 @@ export class YouTubeDiscoveryService {
       },
     });
 
-    const videoIds = (uploads.items || [])
+    const videoIds: string[] = (uploads.items || [])
       .map((item: any) => item?.contentDetails?.videoId)
-      .filter(Boolean);
+      .filter(
+        (videoId: unknown): videoId is string =>
+          typeof videoId === "string" && videoId.length > 0
+      );
 
     const videosResponse = await this.youtube.getVideos(videoIds);
 
@@ -416,11 +432,11 @@ export class YouTubeDiscoveryService {
     let completedCount = 0;
 
     for (const video of videos) {
-      const status = video.snippet?.liveBroadcastContent;
+      const status = video?.snippet?.liveBroadcastContent;
 
       if (status === "live") liveCount += 1;
       if (status === "upcoming") upcomingCount += 1;
-      if (video.liveStreamingDetails?.actualEndTime) completedCount += 1;
+      if (video?.liveStreamingDetails?.actualEndTime) completedCount += 1;
 
       await this.upsertDiscoveredVideo(video, channel.category);
     }
@@ -453,7 +469,7 @@ export class YouTubeDiscoveryService {
     };
   }
 
-    private getStreamLifecycleFromYouTubeStatus(video: any) {
+  private getStreamLifecycleFromYouTubeStatus(video: any) {
     const liveStatus = video.liveBroadcastContent;
 
     if (liveStatus === "live") return "LIVE";
@@ -505,7 +521,10 @@ export class YouTubeDiscoveryService {
     return this.ingestDiscoveredVideoAsVideo(discovered, options);
   }
 
-  private async ingestDiscoveredVideoAsStream(discovered: any, options?: { eventId?: string }) {
+  private async ingestDiscoveredVideoAsStream(
+    discovered: any,
+    options?: { eventId?: string }
+  ) {
     if (!options?.eventId) {
       await this.prisma.youTubeDiscoveredVideo.update({
         where: { id: discovered.id },
@@ -586,7 +605,10 @@ export class YouTubeDiscoveryService {
     return { ok: true, type: "stream", action: "created", stream: created };
   }
 
-  private async ingestDiscoveredVideoAsVideo(discovered: any, options?: { eventId?: string }) {
+  private async ingestDiscoveredVideoAsVideo(
+    discovered: any,
+    options?: { eventId?: string }
+  ) {
     if (!options?.eventId) {
       await this.prisma.youTubeDiscoveredVideo.update({
         where: { id: discovered.id },
@@ -739,7 +761,9 @@ export class YouTubeDiscoveryService {
         const ingestAsStream = this.shouldIngestAsStream(video);
 
         if (ingestAsStream && !channel.autoIngestStreams) continue;
-        if (!ingestAsStream && !channel.autoIngestVideos && !channel.autoIngestPodcasts) continue;
+        if (!ingestAsStream && !channel.autoIngestVideos && !channel.autoIngestPodcasts) {
+          continue;
+        }
 
         results.push(
           await this.ingestDiscoveredVideo(video.id, {
