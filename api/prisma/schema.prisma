@@ -51,19 +51,19 @@ model Event {
 }
 
 model Stream {
-  id                String                @id @default(cuid())
+  id                 String   @id @default(cuid())
   eventId           String
-  sourceType        StreamSourceType
-  provider          String                @default("custom")
-  title             String?
+  title              String
+  description        String?
+  sourceType         StreamSourceType
+  provider           String?
+  sourceUrl          String?
+  embedUrl           String?
   isPrimary         Boolean               @default(false)
   priority          Int                   @default(0)
   playbackHlsUrl    String?
   playbackDashUrl   String?
-  youtubeVideoId    String?
   lifecycle         StreamLifecycleStatus @default(CREATED)
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
   needsReview       Boolean               @default(true)
   submittedByUserId String?
   moderationStatus  ModerationStatus      @default(PENDING)
@@ -72,6 +72,19 @@ model Stream {
   reviewedByUserId  String?
   event             Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   submittedBy       User?                 @relation("StreamSubmittedBy", fields: [submittedByUserId], references: [id])
+  youtubeVideoId     String?
+  youtubeChannelId   String?
+  youtubeChannelName String?
+  youtubeThumbnailUrl String?
+  youtubePublishedAt DateTime?
+  youtubeScheduledStartTime DateTime?
+  youtubeActualStartTime DateTime?
+  youtubeActualEndTime DateTime?
+  youtubeEmbeddable Boolean?
+  youtubeLiveStatus String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([eventId, priority])
 }

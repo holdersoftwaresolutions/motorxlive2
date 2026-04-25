@@ -18,6 +18,9 @@ import { PublicLocationController } from "./public/public-location.controller";
 import { AdminController } from "./admin/admin.controller";
 import { ContributorController } from "./contributor/contributor.controller";
 
+import { YouTubeModule } from "./youtube/youtube.module";
+import { YouTubeController } from "./youtube/youtube.controller";
+
 @Module({
   imports: [
     PrismaModule,
@@ -25,6 +28,7 @@ import { ContributorController } from "./contributor/contributor.controller";
     GeocodingModule,
     MapboxLocationModule,
     AuthModule,
+    YouTubeModule,
   ],
   controllers: [
     HealthController,
@@ -38,6 +42,7 @@ import { ContributorController } from "./contributor/contributor.controller";
     PublicLocationController,
     AdminController,
     ContributorController,
+    YouTubeController,
   ],
 })
 export class AppModule {}

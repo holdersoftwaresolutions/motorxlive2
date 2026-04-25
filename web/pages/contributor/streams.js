@@ -13,8 +13,12 @@ function formatEventOptionLabel(event) {
   const datePart = event.startAt
     ? new Date(event.startAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     : "No date";
+
   const locationPart =
-    event.city || event.state ? [event.city, event.state].filter(Boolean).join(", ") : "Location TBD";
+    event.city || event.state
+      ? [event.city, event.state].filter(Boolean).join(", ")
+      : "Location TBD";
+
   return `${datePart} - ${locationPart} - ${event.title}`;
 }
 
@@ -28,19 +32,14 @@ function parseYouTubeUrl(input = "") {
     }
 
     if (url.hostname.includes("youtube.com")) {
-      if (url.searchParams.get("v")) {
-        return { videoId: url.searchParams.get("v") };
-      }
+      const fromQuery = url.searchParams.get("v");
+      if (fromQuery) return { videoId: fromQuery };
 
       const liveMatch = url.pathname.match(/\/live\/([^/?]+)/);
-      if (liveMatch?.[1]) {
-        return { videoId: liveMatch[1] };
-      }
+      if (liveMatch?.[1]) return { videoId: liveMatch[1] };
 
       const embedMatch = url.pathname.match(/\/embed\/([^/?]+)/);
-      if (embedMatch?.[1]) {
-        return { videoId: embedMatch[1] };
-      }
+      if (embedMatch?.[1]) return { videoId: embedMatch[1] };
     }
 
     return null;
@@ -49,14 +48,22 @@ function parseYouTubeUrl(input = "") {
   }
 }
 
-function fallbackTitleFromYouTubeUrl(input = "") {
-  try {
-    const url = new URL(input.trim());
-    const last = url.pathname.split("/").filter(Boolean).pop();
-    return last ? `YouTube Feed ${last}` : "";
-  } catch {
-    return "";
+async function autofillYouTube(url) {
+  const res = await fetch("/api/youtube/autofill", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(text || "Could not load YouTube metadata.");
   }
+
+  return text ? JSON.parse(text) : null;
 }
 
 const emptyForm = {
@@ -66,11 +73,19 @@ const emptyForm = {
   youtubeUrl: "",
   youtubeVideoId: "",
   playbackHlsUrl: "",
+  sourceUrl: "",
+  embedUrl: "",
+  youtubeChannelId: "",
+  youtubeChannelName: "",
+  youtubeThumbnailUrl: "",
+  youtubeEmbeddable: null,
+  youtubeLiveStatus: "",
 };
 
 async function parseResponse(res) {
   const text = await res.text();
   if (!text) return null;
+
   try {
     return JSON.parse(text);
   } catch {
@@ -85,24 +100,44 @@ export default function ContributorStreamsPage({ currentUser }) {
   const [myStreams, setMyStreams] = useState([]);
   const [editingId, setEditingId] = useState("");
   const [busyId, setBusyId] = useState("");
+  const [loadingYouTube, setLoadingYouTube] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
   const isYoutube = form.sourceType === "YOUTUBE";
+
   const canSubmit = useMemo(() => {
-    return selectedEventId && (isYoutube ? form.youtubeUrl.trim() : form.playbackHlsUrl.trim());
-  }, [selectedEventId, isYoutube, form.youtubeUrl, form.playbackHlsUrl]);
+    if (!selectedEventId) return false;
+    if (loadingYouTube) return false;
+
+    if (isYoutube) {
+      return !!form.youtubeUrl.trim() && !!form.youtubeVideoId.trim();
+    }
+
+    return !!form.playbackHlsUrl.trim();
+  }, [selectedEventId, loadingYouTube, isYoutube, form]);
 
   async function loadEvents() {
     const res = await fetch("/api/contributor/events", { credentials: "include" });
     const json = await parseResponse(res);
     const list = Array.isArray(json) ? json : [];
+
     setEvents(list);
-    if (!selectedEventId && list.length > 0) setSelectedEventId(list[0].id);
+
+    if (!selectedEventId && list.length > 0) {
+      setSelectedEventId(list[0].id);
+    }
   }
 
   async function loadMyStreams(eventId) {
-    if (!eventId) return setMyStreams([]);
-    const res = await fetch(`/api/contributor/events/${eventId}/streams`, { credentials: "include" });
+    if (!eventId) {
+      setMyStreams([]);
+      return;
+    }
+
+    const res = await fetch(`/api/contributor/events/${eventId}/streams`, {
+      credentials: "include",
+    });
+
     const json = await parseResponse(res);
     setMyStreams(Array.isArray(json) ? json : []);
   }
@@ -123,61 +158,130 @@ export default function ContributorStreamsPage({ currentUser }) {
   function startEdit(stream) {
     setEditingId(stream.id);
     setMessage("");
+
     setForm({
       sourceType: stream.sourceType || "YOUTUBE",
       title: stream.title || "",
       isPrimary: !!stream.isPrimary,
-      youtubeUrl: stream.youtubeVideoId ? `https://www.youtube.com/watch?v=${stream.youtubeVideoId}` : "",
+      youtubeUrl: stream.youtubeVideoId
+        ? `https://www.youtube.com/watch?v=${stream.youtubeVideoId}`
+        : "",
       youtubeVideoId: stream.youtubeVideoId || "",
       playbackHlsUrl: stream.playbackHlsUrl || "",
+      sourceUrl: stream.sourceUrl || "",
+      embedUrl: stream.embedUrl || "",
+      youtubeChannelId: stream.youtubeChannelId || "",
+      youtubeChannelName: stream.youtubeChannelName || "",
+      youtubeThumbnailUrl: stream.youtubeThumbnailUrl || "",
+      youtubeEmbeddable:
+        stream.youtubeEmbeddable === undefined ? null : stream.youtubeEmbeddable,
+      youtubeLiveStatus: stream.youtubeLiveStatus || "",
     });
   }
 
-  function handleYouTubeUrlChange(value) {
+  async function handleYouTubeUrlChange(value) {
     const parsed = parseYouTubeUrl(value);
-    const nextVideoId = parsed?.videoId || "";
-    const nextFallbackTitle = form.title || fallbackTitleFromYouTubeUrl(value);
 
-    setForm((s) => ({
-      ...s,
+    setForm((prev) => ({
+      ...prev,
       youtubeUrl: value,
-      youtubeVideoId: nextVideoId,
-      title: s.title || nextFallbackTitle,
+      youtubeVideoId: parsed?.videoId || "",
     }));
+
+    if (!value.trim() || !parsed?.videoId) return;
+
+    try {
+      setLoadingYouTube(true);
+      setMessage("Loading YouTube details...");
+
+      const data = await autofillYouTube(value);
+
+      setForm((prev) => ({
+        ...prev,
+        title: data?.title || prev.title,
+        provider: "YouTube",
+        sourceType: "YOUTUBE",
+        sourceUrl: data?.watchUrl || value,
+        embedUrl: data?.embedUrl || "",
+        youtubeVideoId: data?.videoId || parsed.videoId,
+        youtubeChannelId: data?.channelId || "",
+        youtubeChannelName: data?.channelTitle || "",
+        youtubeThumbnailUrl: data?.thumbnailUrl || "",
+        youtubeEmbeddable:
+          data?.embeddable === undefined ? prev.youtubeEmbeddable : data.embeddable,
+        youtubeLiveStatus: data?.liveBroadcastContent || "",
+      }));
+
+      setMessage("YouTube details loaded.");
+    } catch (err) {
+      setMessage(err.message || "Could not load YouTube metadata.");
+    } finally {
+      setLoadingYouTube(false);
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setMessage("");
 
-    if (!selectedEventId && !editingId) return setMessage("Select an event first.");
-    if (isYoutube && !form.youtubeUrl.trim()) return setMessage("YouTube URL is required.");
-    if (!isYoutube && !form.playbackHlsUrl.trim()) return setMessage("Playback HLS URL is required.");
+    if (!selectedEventId && !editingId) {
+      setMessage("Select an event first.");
+      return;
+    }
+
+    if (isYoutube && !form.youtubeUrl.trim()) {
+      setMessage("YouTube URL is required.");
+      return;
+    }
+
+    if (isYoutube && !form.youtubeVideoId.trim()) {
+      setMessage("Could not parse a YouTube video ID from that URL.");
+      return;
+    }
+
+    if (!isYoutube && !form.playbackHlsUrl.trim()) {
+      setMessage("Playback HLS URL is required.");
+      return;
+    }
 
     const url = editingId
       ? `/api/contributor/streams/${editingId}`
       : `/api/contributor/events/${selectedEventId}/streams`;
+
     const method = editingId ? "PATCH" : "POST";
 
     const payload = {
       sourceType: form.sourceType,
       title: form.title.trim() || undefined,
       isPrimary: form.isPrimary,
+
       youtubeUrl: isYoutube ? form.youtubeUrl.trim() : undefined,
       youtubeVideoId: isYoutube ? form.youtubeVideoId.trim() || undefined : undefined,
+      sourceUrl: isYoutube ? form.sourceUrl || form.youtubeUrl : undefined,
+      embedUrl: isYoutube ? form.embedUrl || undefined : undefined,
+      youtubeChannelId: isYoutube ? form.youtubeChannelId || undefined : undefined,
+      youtubeChannelName: isYoutube ? form.youtubeChannelName || undefined : undefined,
+      youtubeThumbnailUrl: isYoutube ? form.youtubeThumbnailUrl || undefined : undefined,
+      youtubeEmbeddable: isYoutube ? form.youtubeEmbeddable : undefined,
+      youtubeLiveStatus: isYoutube ? form.youtubeLiveStatus || undefined : undefined,
+
       playbackHlsUrl: !isYoutube ? form.playbackHlsUrl.trim() : undefined,
     };
 
     const res = await fetch(url, {
       method,
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
     const json = await parseResponse(res);
+
     if (!res.ok || json?.ok === false) {
-      return setMessage(json?.error || `Failed to ${editingId ? "update" : "submit"} stream.`);
+      setMessage(json?.error || `Failed to ${editingId ? "update" : "submit"} stream.`);
+      return;
     }
 
     setMessage(editingId ? "Live feed updated." : "Live feed created and published.");
@@ -187,6 +291,7 @@ export default function ContributorStreamsPage({ currentUser }) {
 
   async function handleDelete(streamId) {
     if (!window.confirm("Delete this live feed?")) return;
+
     setBusyId(streamId);
     setMessage("");
 
@@ -195,9 +300,16 @@ export default function ContributorStreamsPage({ currentUser }) {
         method: "DELETE",
         credentials: "include",
       });
+
       const json = await parseResponse(res);
-      if (!res.ok || json?.ok === false) return setMessage(json?.error || "Failed to delete stream.");
+
+      if (!res.ok || json?.ok === false) {
+        setMessage(json?.error || "Failed to delete stream.");
+        return;
+      }
+
       if (editingId === streamId) resetForm();
+
       setMessage("Live feed deleted.");
       loadMyStreams(selectedEventId);
     } finally {
@@ -213,7 +325,10 @@ export default function ContributorStreamsPage({ currentUser }) {
 
       <div style={styles.panel}>
         <div style={styles.sectionHeader}>
-          <h2 style={styles.sectionTitle}>{editingId ? "Edit Live Feed" : "Create Live Feed"}</h2>
+          <h2 style={styles.sectionTitle}>
+            {editingId ? "Edit Live Feed" : "Create Live Feed"}
+          </h2>
+
           {editingId ? (
             <button type="button" style={styles.secondaryButton} onClick={resetForm}>
               Cancel Edit
@@ -239,12 +354,11 @@ export default function ContributorStreamsPage({ currentUser }) {
             style={styles.input}
             value={form.sourceType}
             onChange={(e) =>
-              setForm((s) => ({
-                ...s,
+              setForm((prev) => ({
+                ...emptyForm,
                 sourceType: e.target.value,
-                youtubeUrl: "",
-                youtubeVideoId: "",
-                playbackHlsUrl: "",
+                title: prev.title,
+                isPrimary: prev.isPrimary,
               }))
             }
           >
@@ -252,49 +366,100 @@ export default function ContributorStreamsPage({ currentUser }) {
             <option value="EXTERNAL_HLS">External HLS</option>
           </select>
 
-          <input
-            style={styles.input}
-            placeholder="Feed title (optional)"
-            value={form.title}
-            onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
-          />
-
           {isYoutube ? (
             <>
               <input
                 style={styles.input}
-                placeholder="YouTube URL"
+                placeholder="Paste YouTube URL"
                 value={form.youtubeUrl}
                 onChange={(e) => handleYouTubeUrlChange(e.target.value)}
               />
+
               <div style={styles.helperText}>
-                Parsed YouTube Video ID: <strong>{form.youtubeVideoId || "—"}</strong>
+                Parsed YouTube ID: <strong>{form.youtubeVideoId || "—"}</strong>
               </div>
+
+              {loadingYouTube ? (
+                <div style={styles.helperText}>Loading YouTube metadata...</div>
+              ) : null}
+
+              <input
+                style={styles.input}
+                placeholder="Feed title (optional)"
+                value={form.title}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+              />
+
+              {form.youtubeThumbnailUrl ? (
+                <div style={styles.previewCard}>
+                  <img
+                    src={form.youtubeThumbnailUrl}
+                    alt="YouTube thumbnail"
+                    style={styles.previewImage}
+                  />
+                </div>
+              ) : null}
+
+              {form.youtubeChannelName ? (
+                <div style={styles.helperText}>
+                  Channel: <strong>{form.youtubeChannelName}</strong>
+                </div>
+              ) : null}
+
+              {form.youtubeLiveStatus ? (
+                <div style={styles.helperText}>
+                  YouTube status: <strong>{form.youtubeLiveStatus}</strong>
+                </div>
+              ) : null}
             </>
           ) : (
-            <input
-              style={styles.input}
-              placeholder="Playback HLS URL"
-              value={form.playbackHlsUrl}
-              onChange={(e) => setForm((s) => ({ ...s, playbackHlsUrl: e.target.value }))}
-            />
+            <>
+              <input
+                style={styles.input}
+                placeholder="Feed title (optional)"
+                value={form.title}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, title: e.target.value }))
+                }
+              />
+
+              <input
+                style={styles.input}
+                placeholder="Playback HLS URL"
+                value={form.playbackHlsUrl}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, playbackHlsUrl: e.target.value }))
+                }
+              />
+            </>
           )}
 
           <label style={styles.checkboxRow}>
             <input
               type="checkbox"
               checked={form.isPrimary}
-              onChange={(e) => setForm((s) => ({ ...s, isPrimary: e.target.checked }))}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, isPrimary: e.target.checked }))
+              }
             />
             Primary live feed for this event
           </label>
 
           <button
             type="submit"
-            style={{ ...styles.button, ...(canSubmit ? {} : styles.buttonDisabled) }}
+            style={{
+              ...styles.button,
+              ...(canSubmit ? {} : styles.buttonDisabled),
+            }}
             disabled={!canSubmit}
           >
-            {editingId ? "Save Changes" : "Create Live Feed"}
+            {loadingYouTube
+              ? "Loading YouTube..."
+              : editingId
+              ? "Save Changes"
+              : "Create Live Feed"}
           </button>
         </form>
 
@@ -303,6 +468,7 @@ export default function ContributorStreamsPage({ currentUser }) {
 
       <div style={styles.panel}>
         <h2 style={styles.sectionTitle}>My Live Feeds</h2>
+
         {myStreams.length === 0 ? (
           <p style={styles.muted}>No live feeds yet.</p>
         ) : (
@@ -314,10 +480,13 @@ export default function ContributorStreamsPage({ currentUser }) {
                     <div style={styles.itemTitle}>{stream.title || "Untitled feed"}</div>
                     <div style={styles.itemMeta}>{getStatusLabel(stream)}</div>
                   </div>
+
                   <span
                     style={{
                       ...styles.badge,
-                      ...(stream.lifecycle === "LIVE" ? styles.badgeApproved : styles.badgePending),
+                      ...(stream.lifecycle === "LIVE"
+                        ? styles.badgeApproved
+                        : styles.badgePending),
                     }}
                   >
                     {getStatusLabel(stream)}
@@ -326,14 +495,35 @@ export default function ContributorStreamsPage({ currentUser }) {
 
                 <div style={styles.itemDetails}>
                   {stream.youtubeVideoId ? <div>YouTube: {stream.youtubeVideoId}</div> : null}
+                  {stream.youtubeChannelName ? (
+                    <div>Channel: {stream.youtubeChannelName}</div>
+                  ) : null}
+                  {stream.youtubeLiveStatus ? (
+                    <div>YouTube Status: {stream.youtubeLiveStatus}</div>
+                  ) : null}
                   {stream.playbackHlsUrl ? <div>HLS attached</div> : null}
                   {stream.isPrimary ? <div>Primary feed</div> : null}
                 </div>
 
+                {stream.youtubeThumbnailUrl ? (
+                  <div style={styles.smallPreviewCard}>
+                    <img
+                      src={stream.youtubeThumbnailUrl}
+                      alt="YouTube thumbnail"
+                      style={styles.smallPreviewImage}
+                    />
+                  </div>
+                ) : null}
+
                 <div style={styles.actions}>
-                  <button type="button" style={styles.secondaryButton} onClick={() => startEdit(stream)}>
+                  <button
+                    type="button"
+                    style={styles.secondaryButton}
+                    onClick={() => startEdit(stream)}
+                  >
                     Edit
                   </button>
+
                   <button
                     type="button"
                     style={{
@@ -387,6 +577,30 @@ const styles = {
   helperText: {
     fontSize: 13,
     color: "#9aa4af",
+  },
+  previewCard: {
+    border: "1px solid #2a3647",
+    borderRadius: 12,
+    overflow: "hidden",
+    background: "#0f141a",
+  },
+  previewImage: {
+    width: "100%",
+    display: "block",
+    maxHeight: 240,
+    objectFit: "cover",
+  },
+  smallPreviewCard: {
+    marginTop: 12,
+    border: "1px solid #2a3647",
+    borderRadius: 12,
+    overflow: "hidden",
+    background: "#0f141a",
+    maxWidth: 280,
+  },
+  smallPreviewImage: {
+    width: "100%",
+    display: "block",
   },
   button: {
     background: "#2563eb",
