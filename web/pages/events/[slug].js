@@ -2,20 +2,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 
-function getEmbedType(stream) {
-  if (!stream) return "unknown";
-  if (stream.sourceType === "YOUTUBE" && stream.youtubeVideoId) return "youtube";
-  if (stream.playbackHlsUrl) return "hls";
-  if (stream.playbackDashUrl) return "dash";
+function getEmbedType(item) {
+  if (!item) return "unknown";
+  if (item.sourceType === "YOUTUBE" && item.youtubeVideoId) return "youtube";
+  if (item.youtubeVideoId) return "youtube";
+  if (item.playbackHlsUrl) return "hls";
+  if (item.playbackDashUrl) return "dash";
   return "unknown";
 }
 
-function getVideoEmbedType(video) {
-  if (!video) return "unknown";
-  if (video.youtubeVideoId) return "youtube";
-  if (video.playbackHlsUrl) return "hls";
-  if (video.playbackDashUrl) return "dash";
-  return "unknown";
+function getStreamBadge(stream) {
+  if (!stream) return "OFFLINE";
+  if (stream.lifecycle === "LIVE") return "LIVE";
+  if (stream.lifecycle === "READY") return "UPCOMING";
+  if (stream.lifecycle === "ENDED") return "ENDED";
+  return stream.lifecycle || "READY";
+}
+
+function getVideoBadge(video) {
+  if (!video) return "VIDEO";
+  if (video.youtubeLiveStatus === "live") return "LIVE";
+  if (video.youtubeLiveStatus === "upcoming") return "UPCOMING";
+  return "REPLAY";
 }
 
 function YouTubePlayer({ videoId, title = "Video Player" }) {
@@ -80,33 +88,32 @@ function HlsPlayer({ src }) {
 
   return (
     <div style={styles.videoWrap}>
-      <video
-        ref={videoRef}
-        controls
-        autoPlay
-        playsInline
-        style={styles.video}
-      />
+      <video ref={videoRef} controls autoPlay playsInline style={styles.video} />
     </div>
   );
 }
 
-function StreamPlayer({ stream }) {
-  const embedType = getEmbedType(stream);
-
-  if (!stream) {
-    return <div style={styles.playerFallback}>No live stream available yet.</div>;
+function MediaPlayer({ media }) {
+  if (!media?.item) {
+    return <div style={styles.playerFallback}>No stream or video available yet.</div>;
   }
 
+  const embedType = getEmbedType(media.item);
+
   if (embedType === "youtube") {
-    return <YouTubePlayer videoId={stream.youtubeVideoId} title={stream.title || "Live Stream"} />;
+    return (
+      <YouTubePlayer
+        videoId={media.item.youtubeVideoId}
+        title={media.item.title || "MotorXLive Player"}
+      />
+    );
   }
 
   if (embedType === "hls") {
-    return <HlsPlayer src={stream.playbackHlsUrl} />;
+    return <HlsPlayer src={media.item.playbackHlsUrl} />;
   }
 
-  if (embedType === "dash" && stream.playbackDashUrl) {
+  if (embedType === "dash") {
     return (
       <div style={styles.playerFallback}>
         DASH source detected. Add dash.js later or provide HLS for broader browser support.
@@ -114,37 +121,12 @@ function StreamPlayer({ stream }) {
     );
   }
 
-  return <div style={styles.playerFallback}>Unsupported stream type.</div>;
-}
-
-function VideoPlayer({ video }) {
-  const embedType = getVideoEmbedType(video);
-
-  if (!video) {
-    return <div style={styles.playerFallback}>No video selected.</div>;
-  }
-
-  if (embedType === "youtube") {
-    return <YouTubePlayer videoId={video.youtubeVideoId} title={video.title || "Event Video"} />;
-  }
-
-  if (embedType === "hls") {
-    return <HlsPlayer src={video.playbackHlsUrl} />;
-  }
-
-  if (embedType === "dash" && video.playbackDashUrl) {
-    return (
-      <div style={styles.playerFallback}>
-        DASH video detected. Add dash.js later or provide HLS for broader browser support.
-      </div>
-    );
-  }
-
-  return <div style={styles.playerFallback}>Unsupported video type.</div>;
+  return <div style={styles.playerFallback}>Unsupported media source.</div>;
 }
 
 function formatDate(dateValue) {
   if (!dateValue) return "TBD";
+
   try {
     return new Date(dateValue).toLocaleString(undefined, {
       month: "short",
@@ -158,48 +140,65 @@ function formatDate(dateValue) {
   }
 }
 
+function getChannelLabel(item) {
+  return (
+    item?.youtubeChannelName ||
+    item?.channelName ||
+    item?.provider ||
+    "MotorXLive"
+  );
+}
+
 export default function EventWatchPage({ event, liveData, videoData }) {
   const streams = liveData?.streams || [];
-  const approvedVideos =
+  const videos =
     (videoData?.videos && videoData.videos.length ? videoData.videos : event?.videos) || [];
 
-  const [selectedMedia, setSelectedMedia] = useState(() => {
-    const firstStream = liveData?.primaryStream || liveData?.streams?.[0] || null;
-    const firstVideo = approvedVideos?.[0] || null;
+  const playableStreams = streams.filter(
+    (stream) => stream.youtubeVideoId || stream.playbackHlsUrl || stream.playbackDashUrl
+  );
 
-    if (firstStream) {
-      return { type: "stream", id: firstStream.id };
+  const playableVideos = videos.filter(
+    (video) => video.youtubeVideoId || video.playbackHlsUrl || video.playbackDashUrl
+  );
+
+  const [selectedMedia, setSelectedMedia] = useState(null);
+
+  useEffect(() => {
+    if (selectedMedia) return;
+
+    const primaryStream =
+      liveData?.primaryStream ||
+      playableStreams.find((stream) => stream.isPrimary) ||
+      playableStreams.find((stream) => stream.lifecycle === "LIVE") ||
+      playableStreams[0];
+
+    if (primaryStream) {
+      setSelectedMedia({ type: "stream", id: primaryStream.id });
+      return;
     }
 
-    if (firstVideo) {
-      return { type: "video", id: firstVideo.id };
+    if (playableVideos[0]) {
+      setSelectedMedia({ type: "video", id: playableVideos[0].id });
+    }
+  }, [selectedMedia, liveData, playableStreams, playableVideos]);
+
+  const selectedItem = useMemo(() => {
+    if (selectedMedia?.type === "stream") {
+      return playableStreams.find((stream) => stream.id === selectedMedia.id) || null;
+    }
+
+    if (selectedMedia?.type === "video") {
+      return playableVideos.find((video) => video.id === selectedMedia.id) || null;
     }
 
     return null;
-  });
+  }, [selectedMedia, playableStreams, playableVideos]);
 
-  useEffect(() => {
-    if (!selectedMedia) {
-      if (streams.length > 0) {
-        setSelectedMedia({ type: "stream", id: streams[0].id });
-        return;
-      }
-
-      if (approvedVideos.length > 0) {
-        setSelectedMedia({ type: "video", id: approvedVideos[0].id });
-      }
-    }
-  }, [selectedMedia, streams, approvedVideos]);
-
-  const selectedStream = useMemo(() => {
-    if (selectedMedia?.type !== "stream") return null;
-    return streams.find((stream) => stream.id === selectedMedia.id) || streams[0] || null;
-  }, [selectedMedia, streams]);
-
-  const selectedVideo = useMemo(() => {
-    if (selectedMedia?.type !== "video") return null;
-    return approvedVideos.find((video) => video.id === selectedMedia.id) || approvedVideos[0] || null;
-  }, [selectedMedia, approvedVideos]);
+  const selectedBadge =
+    selectedMedia?.type === "stream"
+      ? getStreamBadge(selectedItem)
+      : getVideoBadge(selectedItem);
 
   if (!event || event.ok === false) {
     return (
@@ -232,9 +231,19 @@ export default function EventWatchPage({ event, liveData, videoData }) {
       <div style={styles.page}>
         <div style={styles.container}>
           <div style={styles.heroGrid}>
-            <div style={styles.mainColumn}>
+            <main style={styles.mainColumn}>
               <div style={styles.liveHeader}>
-                <span style={styles.liveBadge}>WATCH</span>
+                <span style={styles.watchBadge}>WATCH</span>
+                {selectedItem ? (
+                  <span
+                    style={{
+                      ...styles.mediaBadge,
+                      ...(selectedBadge === "LIVE" ? styles.liveNowBadge : {}),
+                    }}
+                  >
+                    {selectedBadge}
+                  </span>
+                ) : null}
                 {event.category?.name ? (
                   <span style={styles.categoryBadge}>{event.category.name}</span>
                 ) : null}
@@ -247,65 +256,122 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                 {locationLabel ? <span>{locationLabel}</span> : null}
               </div>
 
-              <div style={styles.playerCard}>
-                {selectedMedia?.type === "stream" ? (
-                  <StreamPlayer stream={selectedStream} />
-                ) : selectedMedia?.type === "video" ? (
-                  <VideoPlayer video={selectedVideo} />
-                ) : (
-                  <div style={styles.playerFallback}>No stream or video available yet.</div>
-                )}
-              </div>
+              <section style={styles.playerCard}>
+                <MediaPlayer media={{ type: selectedMedia?.type, item: selectedItem }} />
+              </section>
 
-              <div style={styles.statusStrip}>
-                <div style={styles.statusPill}>
-                  {selectedMedia?.type === "stream" && selectedStream
-                    ? `Watching live: ${selectedStream.title || "Primary feed"}`
-                    : selectedMedia?.type === "video" && selectedVideo
-                    ? `Watching video: ${selectedVideo.title || "Replay"}`
-                    : "No stream or video selected"}
+              <div style={styles.nowWatching}>
+                <div>
+                  <div style={styles.nowWatchingLabel}>Now Watching</div>
+                  <div style={styles.nowWatchingTitle}>
+                    {selectedItem?.title || "No stream selected"}
+                  </div>
+                  <div style={styles.nowWatchingMeta}>
+                    {selectedItem ? getChannelLabel(selectedItem) : "Waiting for content"}
+                  </div>
                 </div>
-                <div style={styles.statusPill}>
-                  {streams.length
-                    ? `${streams.length} approved ${streams.length === 1 ? "stream" : "streams"}`
-                    : "No live feeds returned"}
-                </div>
-                <div style={styles.statusPill}>
-                  {approvedVideos.length} published {approvedVideos.length === 1 ? "video" : "videos"}
+
+                <div style={styles.statusStack}>
+                  <span style={styles.statusPill}>
+                    {playableStreams.length} {playableStreams.length === 1 ? "stream" : "streams"}
+                  </span>
+                  <span style={styles.statusPill}>
+                    {playableVideos.length} {playableVideos.length === 1 ? "video" : "videos"}
+                  </span>
                 </div>
               </div>
 
-              {streams.length > 0 ? (
-                <div style={styles.streamSwitcher}>
-                  <div style={styles.sectionHeading}>Available Streams</div>
-                  <div style={styles.streamTabs}>
-                    {streams.map((stream, index) => (
+              {playableStreams.length > 0 ? (
+                <section style={styles.infoCard}>
+                  <div style={styles.sectionHeading}>Live & Upcoming Feeds</div>
+                  <div style={styles.mediaGrid}>
+                    {playableStreams.map((stream) => (
                       <button
                         key={stream.id}
                         type="button"
                         onClick={() => setSelectedMedia({ type: "stream", id: stream.id })}
                         style={{
-                          ...styles.streamTab,
+                          ...styles.mediaCard,
                           ...(selectedMedia?.type === "stream" && selectedMedia?.id === stream.id
-                            ? styles.streamTabActive
+                            ? styles.mediaCardActive
                             : {}),
                         }}
                       >
-                        {stream.title || `Stream ${index + 1}`}
+                        <div style={styles.mediaCardTop}>
+                          <span
+                            style={{
+                              ...styles.smallBadge,
+                              ...(stream.lifecycle === "LIVE" ? styles.liveNowBadge : {}),
+                            }}
+                          >
+                            {getStreamBadge(stream)}
+                          </span>
+                          {stream.isPrimary ? <span style={styles.primaryBadge}>PRIMARY</span> : null}
+                        </div>
+                        <div style={styles.mediaCardTitle}>{stream.title || "Live Feed"}</div>
+                        <div style={styles.mediaCardMeta}>{getChannelLabel(stream)}</div>
                       </button>
                     ))}
                   </div>
-                </div>
+                </section>
               ) : null}
+
+              <section style={styles.infoCard}>
+                <div style={styles.sectionHeading}>Replays & Videos</div>
+
+                {!playableVideos.length ? (
+                  <p style={styles.mutedText}>No videos published yet.</p>
+                ) : (
+                  <div style={styles.videoList}>
+                    {playableVideos.map((video) => (
+                      <button
+                        key={video.id}
+                        type="button"
+                        onClick={() => setSelectedMedia({ type: "video", id: video.id })}
+                        style={{
+                          ...styles.videoRow,
+                          ...(selectedMedia?.type === "video" && selectedMedia?.id === video.id
+                            ? styles.mediaCardActive
+                            : {}),
+                        }}
+                      >
+                        {video.youtubeThumbnailUrl ? (
+                          <img
+                            src={video.youtubeThumbnailUrl}
+                            alt={video.title}
+                            style={styles.videoThumb}
+                          />
+                        ) : null}
+
+                        <div style={styles.videoText}>
+                          <div style={styles.videoTitle}>{video.title}</div>
+                          <div style={styles.videoMeta}>
+                            {getVideoBadge(video)} • {video.publishedAt ? formatDate(video.publishedAt) : "Unscheduled"}
+                          </div>
+                          <div style={styles.videoMeta}>{getChannelLabel(video)}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
 
               {event.description ? (
-                <div style={styles.infoCard}>
+                <section style={styles.infoCard}>
                   <div style={styles.sectionHeading}>About This Event</div>
                   <p style={styles.description}>{event.description}</p>
+                </section>
+              ) : null}
+            </main>
+
+            <aside style={styles.sideColumn}>
+              {event.heroImageUrl ? (
+                <div style={styles.flyerCard}>
+                  <img src={event.heroImageUrl} alt={event.title} style={styles.flyerImage} />
                 </div>
               ) : null}
 
-              <div style={styles.infoCard}>
+              <section style={styles.infoCard}>
                 <div style={styles.sectionHeading}>Event Details</div>
                 <div style={styles.detailsGrid}>
                   <div>
@@ -327,51 +393,9 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div style={styles.infoCard}>
-                <div style={styles.sectionHeading}>Replays & Videos</div>
-                {!approvedVideos.length ? (
-                  <p style={styles.mutedText}>No videos published yet.</p>
-                ) : (
-                  <div style={styles.videoList}>
-                    {approvedVideos.map((video) => (
-                      <div key={video.id} style={styles.videoRow}>
-                        <div>
-                          <div style={styles.videoTitle}>{video.title}</div>
-                          <div style={styles.videoMeta}>
-                            {video.publishedAt ? formatDate(video.publishedAt) : "Unscheduled"}
-                          </div>
-                        </div>
-
-                        {(video.youtubeVideoId || video.playbackHlsUrl || video.playbackDashUrl) ? (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedMedia({ type: "video", id: video.id })}
-                            style={styles.linkButton}
-                          >
-                            Watch
-                          </button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <aside style={styles.sideColumn}>
-              {event.heroImageUrl ? (
-                <div style={styles.flyerCard}>
-                  <img
-                    src={event.heroImageUrl}
-                    alt={event.title}
-                    style={styles.flyerImage}
-                  />
-                </div>
-              ) : null}
-
-              <div style={styles.infoCard}>
+              <section style={styles.infoCard}>
                 <div style={styles.sectionHeading}>Quick Links</div>
                 <div style={styles.quickLinks}>
                   <Link href="/" style={styles.link}>
@@ -383,17 +407,7 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                     </Link>
                   ) : null}
                 </div>
-              </div>
-
-              <div style={styles.infoCard}>
-                <div style={styles.sectionHeading}>Viewing Tips</div>
-                <ul style={styles.tipList}>
-                  <li>Use the stream and video buttons to switch what plays in the main player.</li>
-                  <li>Approved videos can play here even when there is no active live feed.</li>
-                  <li>Refresh if a newly approved stream or video does not appear immediately.</li>
-                  <li>For Chrome/Edge, HLS playback is handled automatically.</li>
-                </ul>
-              </div>
+              </section>
             </aside>
           </div>
         </div>
@@ -469,14 +483,28 @@ const styles = {
     flexWrap: "wrap",
     marginBottom: 10,
   },
-  liveBadge: {
-    background: "#c62828",
+  watchBadge: {
+    background: "#2563eb",
     color: "#fff",
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 800,
     borderRadius: 999,
     padding: "6px 10px",
     letterSpacing: 0.6,
+  },
+  mediaBadge: {
+    background: "#4a3412",
+    color: "#ffd28b",
+    border: "1px solid #7a551d",
+    fontSize: 12,
+    fontWeight: 800,
+    borderRadius: 999,
+    padding: "6px 10px",
+  },
+  liveNowBadge: {
+    background: "#c62828",
+    color: "#fff",
+    border: "1px solid #ff4d4d",
   },
   categoryBadge: {
     background: "#1b2a40",
@@ -521,17 +549,44 @@ const styles = {
     background: "#000",
   },
   playerFallback: {
-    padding: "48px 24px",
+    padding: "72px 24px",
     textAlign: "center",
     color: "#9aa4af",
     background: "#0f141a",
   },
-  statusStrip: {
+  nowWatching: {
+    marginTop: 14,
+    marginBottom: 18,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    alignItems: "center",
+    background: "#11161c",
+    border: "1px solid #1f2937",
+    borderRadius: 16,
+    padding: 16,
+    flexWrap: "wrap",
+  },
+  nowWatchingLabel: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    color: "#8fb3ff",
+    marginBottom: 4,
+  },
+  nowWatchingTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+  },
+  nowWatchingMeta: {
+    marginTop: 4,
+    color: "#9aa4af",
+    fontSize: 13,
+  },
+  statusStack: {
     display: "flex",
     gap: 10,
     flexWrap: "wrap",
-    marginTop: 14,
-    marginBottom: 18,
   },
   statusPill: {
     background: "#101827",
@@ -541,47 +596,122 @@ const styles = {
     fontSize: 13,
     color: "#dbe4ee",
   },
-  streamSwitcher: {
-    marginBottom: 18,
-  },
-  streamTabs: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  streamTab: {
-    border: "1px solid #243041",
-    background: "#11161c",
-    color: "#dbe4ee",
-    padding: "10px 14px",
-    borderRadius: 10,
-    cursor: "pointer",
-  },
-  streamTabActive: {
-    background: "#1d4ed8",
-    borderColor: "#1d4ed8",
-    color: "#fff",
-  },
   infoCard: {
     background: "#11161c",
     border: "1px solid #1f2937",
     borderRadius: 16,
     padding: 18,
+    marginBottom: 18,
   },
   sectionHeading: {
     fontSize: 16,
-    fontWeight: 700,
+    fontWeight: 800,
     marginBottom: 14,
+  },
+  mediaGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+  },
+  mediaCard: {
+    textAlign: "left",
+    background: "#0f141a",
+    color: "#f5f7fa",
+    border: "1px solid #243041",
+    borderRadius: 14,
+    padding: 14,
+    cursor: "pointer",
+  },
+  mediaCardActive: {
+    borderColor: "#2563eb",
+    boxShadow: "0 0 0 1px #2563eb",
+  },
+  mediaCardTop: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  smallBadge: {
+    background: "#4a3412",
+    color: "#ffd28b",
+    border: "1px solid #7a551d",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  primaryBadge: {
+    background: "#123a28",
+    color: "#8fd19e",
+    border: "1px solid #215c41",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  mediaCardTitle: {
+    fontWeight: 800,
+    marginBottom: 6,
+  },
+  mediaCardMeta: {
+    color: "#9aa4af",
+    fontSize: 13,
+  },
+  videoList: {
+    display: "grid",
+    gap: 12,
+  },
+  videoRow: {
+    width: "100%",
+    display: "grid",
+    gridTemplateColumns: "140px 1fr",
+    gap: 12,
+    textAlign: "left",
+    alignItems: "center",
+    padding: 12,
+    border: "1px solid #1f2937",
+    borderRadius: 12,
+    background: "#0f141a",
+    color: "#f5f7fa",
+    cursor: "pointer",
+  },
+  videoThumb: {
+    width: "100%",
+    aspectRatio: "16 / 9",
+    objectFit: "cover",
+    borderRadius: 10,
+    background: "#000",
+  },
+  videoText: {
+    minWidth: 0,
+  },
+  videoTitle: {
+    fontWeight: 800,
+  },
+  videoMeta: {
+    marginTop: 4,
+    color: "#9aa4af",
+    fontSize: 13,
   },
   description: {
     margin: 0,
     lineHeight: 1.7,
     color: "#d3d8de",
   },
+  flyerCard: {
+    background: "#11161c",
+    border: "1px solid #1f2937",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  flyerImage: {
+    width: "100%",
+    display: "block",
+  },
   detailsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 16,
+    gap: 14,
   },
   detailLabel: {
     fontSize: 12,
@@ -594,51 +724,6 @@ const styles = {
     color: "#f5f7fa",
     lineHeight: 1.5,
   },
-  videoList: {
-    display: "grid",
-    gap: 12,
-  },
-  videoRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    padding: "12px 14px",
-    border: "1px solid #1f2937",
-    borderRadius: 12,
-    background: "#0f141a",
-  },
-  videoTitle: {
-    fontWeight: 600,
-    color: "#f5f7fa",
-  },
-  videoMeta: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#9aa4af",
-  },
-  linkButton: {
-    background: "#2563eb",
-    color: "#fff",
-    textDecoration: "none",
-    borderRadius: 10,
-    padding: "10px 14px",
-    display: "inline-block",
-    border: "none",
-    cursor: "pointer",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-  flyerCard: {
-    background: "#11161c",
-    border: "1px solid #1f2937",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  flyerImage: {
-    width: "100%",
-    display: "block",
-  },
   quickLinks: {
     display: "grid",
     gap: 10,
@@ -646,13 +731,6 @@ const styles = {
   link: {
     color: "#8fb3ff",
     textDecoration: "none",
-  },
-  tipList: {
-    margin: 0,
-    paddingLeft: 18,
-    color: "#d3d8de",
-    display: "grid",
-    gap: 8,
   },
   mutedText: {
     color: "#9aa4af",

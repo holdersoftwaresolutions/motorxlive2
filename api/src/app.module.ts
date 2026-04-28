@@ -22,6 +22,8 @@ import { YouTubeModule } from "./youtube/youtube.module";
 import { YouTubeController } from "./youtube/youtube.controller";
 import { YouTubeDiscoveryModule } from "./youtube-discovery/youtube-discovery.module";
 
+import { NotificationsModule } from "./notifications/notifications.module";
+
 @Module({
   imports: [
     PrismaModule,
@@ -31,6 +33,7 @@ import { YouTubeDiscoveryModule } from "./youtube-discovery/youtube-discovery.mo
     AuthModule,
     YouTubeModule,
     YouTubeDiscoveryModule,
+    NotificationsModule,
   ],
   controllers: [
     HealthController,

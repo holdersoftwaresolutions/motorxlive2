@@ -177,6 +177,21 @@ model YouTubeDiscoveredVideo {
   updatedAt             DateTime @updatedAt
 }
 
+model NotificationLog {
+  id          String             @id @default(cuid())
+  type        NotificationType
+  status      NotificationStatus @default(CREATED)
+  title       String
+  message     String
+  eventId     String?
+  eventSlug   String?
+  streamId    String?
+  payload     Json?
+  error       String?
+  createdAt   DateTime           @default(now())
+  sentAt      DateTime?
+}
+
 model YouTubeApiUsageLog {
   id        String   @id @default(cuid())
   method    String
@@ -249,4 +264,14 @@ enum YouTubeChannelCategory {
   TRACK_CHANNEL
   EVENT_PROMOTER
   CREATOR_MEDIA
+}
+
+enum NotificationType {
+  LIVE_NOW
+}
+
+enum NotificationStatus {
+  CREATED
+  SENT
+  FAILED
 }

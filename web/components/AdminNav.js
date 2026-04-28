@@ -11,6 +11,7 @@ const links = [
   { href: "/admin/youtube-discovery", label: "YouTube Discovery" },
   { href: "/admin/youtube-channels", label: "Approved YouTube Channels" },
   { href: "/admin/youtube-videos", label: "YouTube Videos" },
+  { href: "/admin/notifications", label: "Notifications" },
 ];
 
 export default function AdminNav() {
