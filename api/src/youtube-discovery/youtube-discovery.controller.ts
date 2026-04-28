@@ -54,6 +54,8 @@ export class YouTubeDiscoveryController {
       autoIngestPodcasts?: boolean;
       isFeatured?: boolean;
       priority?: number;
+      isTrusted?: boolean;
+      trustLevel?: "REVIEW_REQUIRED" | "AUTO_INGEST_REVIEW" | "AUTO_PUBLISH";
     }
   ) {
     return this.discovery.updateApprovedChannelSettings(id, body);

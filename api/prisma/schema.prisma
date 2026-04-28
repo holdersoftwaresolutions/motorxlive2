@@ -146,6 +146,9 @@ model YouTubeDiscoveredChannel {
   updatedAt          DateTime @updatedAt
 
   videos             YouTubeDiscoveredVideo[]
+
+  isTrusted  Boolean @default(false)
+  trustLevel YouTubeTrustLevel @default(REVIEW_REQUIRED)
 }
 
 model YouTubeDiscoveredVideo {
@@ -274,4 +277,10 @@ enum NotificationStatus {
   CREATED
   SENT
   FAILED
+}
+
+enum YouTubeTrustLevel {
+  REVIEW_REQUIRED
+  AUTO_INGEST_REVIEW
+  AUTO_PUBLISH
 }

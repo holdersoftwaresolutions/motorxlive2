@@ -23,6 +23,8 @@ const DEFAULT_EVENT_TYPES: Array<"live" | "upcoming" | "completed"> = [
   "completed",
 ];
 
+type TrustLevel = "REVIEW_REQUIRED" | "AUTO_INGEST_REVIEW" | "AUTO_PUBLISH";
+
 @Injectable()
 export class YouTubeDiscoveryService {
   constructor(
@@ -65,7 +67,6 @@ export class YouTubeDiscoveryService {
     }
 
     const videoIds: string[] = Array.from(discoveredVideoIds);
-
     const videosResponse = await this.youtube.getVideos(videoIds);
 
     await this.prisma.youTubeApiUsageLog.create({
@@ -339,8 +340,12 @@ export class YouTubeDiscoveryService {
       autoIngestPodcasts?: boolean;
       isFeatured?: boolean;
       priority?: number;
+      isTrusted?: boolean;
+      trustLevel?: TrustLevel;
     }
   ) {
+    const trustLevel = dto.trustLevel;
+
     return this.prisma.youTubeDiscoveredChannel.update({
       where: { id },
       data: {
@@ -356,6 +361,15 @@ export class YouTubeDiscoveryService {
           : {}),
         ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
         ...(dto.priority !== undefined ? { priority: Number(dto.priority || 0) } : {}),
+        ...(trustLevel !== undefined
+          ? {
+              trustLevel: trustLevel as any,
+              isTrusted: trustLevel === "AUTO_PUBLISH",
+            }
+          : {}),
+        ...(dto.isTrusted !== undefined && trustLevel === undefined
+          ? { isTrusted: dto.isTrusted }
+          : {}),
       },
     });
   }
@@ -488,6 +502,24 @@ export class YouTubeDiscoveryService {
     );
   }
 
+  private getModerationForChannel(channel: any) {
+    if (channel?.trustLevel === "AUTO_PUBLISH") {
+      return {
+        needsReview: false,
+        moderationStatus: "APPROVED" as any,
+        rejectionReason: null,
+        reviewedAt: new Date(),
+      };
+    }
+
+    return {
+      needsReview: true,
+      moderationStatus: "PENDING" as any,
+      rejectionReason: null,
+      reviewedAt: null,
+    };
+  }
+
   async ingestDiscoveredVideo(id: string, options?: { eventId?: string }) {
     const discovered = await this.prisma.youTubeDiscoveredVideo.findUnique({
       where: { id },
@@ -546,6 +578,8 @@ export class YouTubeDiscoveryService {
       },
     });
 
+    const moderation = this.getModerationForChannel(discovered.channel);
+
     if (existing) {
       const updated = await this.prisma.stream.update({
         where: { id: existing.id },
@@ -557,10 +591,7 @@ export class YouTubeDiscoveryService {
           lifecycle: this.getStreamLifecycleFromYouTubeStatus(discovered) as any,
           playbackHlsUrl: null,
           playbackDashUrl: null,
-          needsReview: false,
-          moderationStatus: "APPROVED" as any,
-          rejectionReason: null,
-          reviewedAt: new Date(),
+          ...moderation,
         },
       });
 
@@ -578,10 +609,6 @@ export class YouTubeDiscoveryService {
     const created = await this.prisma.stream.create({
       data: {
         eventId: options.eventId,
-        needsReview: false,
-        moderationStatus: "APPROVED" as any,
-        rejectionReason: null,
-        reviewedAt: new Date(),
         sourceType: "YOUTUBE" as any,
         provider: "YouTube",
         title: discovered.title || "YouTube Live Feed",
@@ -591,6 +618,7 @@ export class YouTubeDiscoveryService {
         playbackDashUrl: null,
         youtubeVideoId: discovered.youtubeVideoId,
         lifecycle: this.getStreamLifecycleFromYouTubeStatus(discovered) as any,
+        ...moderation,
       },
     });
 
@@ -630,6 +658,8 @@ export class YouTubeDiscoveryService {
       },
     });
 
+    const moderation = this.getModerationForChannel(discovered.channel);
+
     if (existing) {
       const updated = await this.prisma.video.update({
         where: { id: existing.id },
@@ -643,10 +673,7 @@ export class YouTubeDiscoveryService {
           playbackDashUrl: null,
           publishedAt: discovered.publishedAt || existing.publishedAt,
           status: "READY" as any,
-          needsReview: false,
-          moderationStatus: "APPROVED" as any,
-          rejectionReason: null,
-          reviewedAt: new Date(),
+          ...moderation,
         },
       });
 
@@ -664,10 +691,6 @@ export class YouTubeDiscoveryService {
     const created = await this.prisma.video.create({
       data: {
         eventId: options.eventId,
-        needsReview: false,
-        moderationStatus: "APPROVED" as any,
-        rejectionReason: null,
-        reviewedAt: new Date(),
         sourceType: "YOUTUBE" as any,
         provider: "YouTube",
         title: discovered.title || "YouTube Video",
@@ -678,6 +701,7 @@ export class YouTubeDiscoveryService {
         durationSeconds: null,
         publishedAt: discovered.publishedAt || null,
         status: "READY" as any,
+        ...moderation,
       },
     });
 
@@ -758,10 +782,17 @@ export class YouTubeDiscoveryService {
 
     for (const channel of channels) {
       for (const video of channel.videos) {
+        if (channel.trustLevel === "REVIEW_REQUIRED") continue;
+
         const ingestAsStream = this.shouldIngestAsStream(video);
 
         if (ingestAsStream && !channel.autoIngestStreams) continue;
-        if (!ingestAsStream && !channel.autoIngestVideos && !channel.autoIngestPodcasts) {
+
+        if (
+          !ingestAsStream &&
+          !channel.autoIngestVideos &&
+          !channel.autoIngestPodcasts
+        ) {
           continue;
         }
 

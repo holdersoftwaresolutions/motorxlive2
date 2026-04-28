@@ -14,6 +14,24 @@ const CATEGORIES = [
   "CREATOR_MEDIA",
 ];
 
+const TRUST_LEVELS = [
+  {
+    value: "REVIEW_REQUIRED",
+    label: "Review Required",
+    help: "Do not auto-ingest content from this channel.",
+  },
+  {
+    value: "AUTO_INGEST_REVIEW",
+    label: "Auto Ingest + Review",
+    help: "Auto-create streams/videos, but keep them pending approval.",
+  },
+  {
+    value: "AUTO_PUBLISH",
+    label: "Auto Publish",
+    help: "Auto-create and immediately publish streams/videos.",
+  },
+];
+
 function formatDate(value) {
   if (!value) return "Never";
   try {
@@ -30,6 +48,14 @@ function formatNumber(value) {
   } catch {
     return value;
   }
+}
+
+function getTrustLabel(value) {
+  return TRUST_LEVELS.find((item) => item.value === value)?.label || "Review Required";
+}
+
+function getTrustHelp(value) {
+  return TRUST_LEVELS.find((item) => item.value === value)?.help || "";
 }
 
 export default function AdminYouTubeChannelsPage() {
@@ -115,7 +141,9 @@ export default function AdminYouTubeChannelsPage() {
       const json = text ? JSON.parse(text) : null;
 
       setMessage(
-        `Monitored channel. Found ${json?.videoCount ?? 0} recent videos, ${json?.liveCount ?? 0} live, ${json?.upcomingCount ?? 0} upcoming.`
+        `Monitored channel. Found ${json?.videoCount ?? 0} recent videos, ${
+          json?.liveCount ?? 0
+        } live, ${json?.upcomingCount ?? 0} upcoming.`
       );
       setMessageType("success");
       await loadChannels();
@@ -162,7 +190,7 @@ export default function AdminYouTubeChannelsPage() {
         <div>
           <h2 style={styles.pageTitle}>Approved Channels</h2>
           <p style={styles.mutedText}>
-            Manage approved YouTube channels, monitoring, and future auto-ingest settings.
+            Manage approved YouTube channels, monitoring, trust levels, and auto-ingest behavior.
           </p>
         </div>
 
@@ -234,6 +262,7 @@ function ChannelSettingsCard({ channel, busy, onSave, onMonitor }) {
     autoIngestPodcasts: !!channel.autoIngestPodcasts,
     isFeatured: !!channel.isFeatured,
     priority: channel.priority ?? 0,
+    trustLevel: channel.trustLevel || "REVIEW_REQUIRED",
   });
 
   const videos = Array.isArray(channel.videos) ? channel.videos : [];
@@ -252,6 +281,9 @@ function ChannelSettingsCard({ channel, busy, onSave, onMonitor }) {
             <div style={styles.channelTitle}>{channel.title}</div>
             <div style={styles.channelMeta}>
               Score {channel.score ?? 0} • Last monitored: {formatDate(channel.lastMonitoredAt)}
+            </div>
+            <div style={styles.trustLine}>
+              Trust: <strong>{getTrustLabel(channel.trustLevel)}</strong>
             </div>
             {channel.channelUrl ? (
               <a href={channel.channelUrl} target="_blank" rel="noreferrer" style={styles.link}>
@@ -294,6 +326,25 @@ function ChannelSettingsCard({ channel, busy, onSave, onMonitor }) {
             onChange={(e) => setDraft((s) => ({ ...s, priority: Number(e.target.value) }))}
           />
         </label>
+
+        <label style={styles.field}>
+          <span style={styles.label}>Trust Level</span>
+          <select
+            style={styles.input}
+            value={draft.trustLevel}
+            onChange={(e) => setDraft((s) => ({ ...s, trustLevel: e.target.value }))}
+          >
+            {TRUST_LEVELS.map((level) => (
+              <option key={level.value} value={level.value}>
+                {level.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div style={styles.trustHelpBox}>
+        <strong>{getTrustLabel(draft.trustLevel)}:</strong> {getTrustHelp(draft.trustLevel)}
       </div>
 
       <div style={styles.checkboxGrid}>
@@ -354,7 +405,8 @@ function ChannelSettingsCard({ channel, busy, onSave, onMonitor }) {
                   <div style={styles.videoTitle}>{video.title}</div>
                   <div style={styles.videoMeta}>
                     {video.liveBroadcastContent || "none"} •{" "}
-                    {video.embeddable === false ? "not embeddable" : "embeddable"}
+                    {video.embeddable === false ? "not embeddable" : "embeddable"} •{" "}
+                    {video.ingestionStatus || "DISCOVERED"}
                   </div>
                   {video.watchUrl ? (
                     <a href={video.watchUrl} target="_blank" rel="noreferrer" style={styles.link}>
@@ -376,7 +428,12 @@ function ChannelSettingsCard({ channel, busy, onSave, onMonitor }) {
             ...(busy ? styles.buttonDisabled : {}),
           }}
           disabled={busy}
-          onClick={() => onSave(draft)}
+          onClick={() =>
+            onSave({
+              ...draft,
+              isTrusted: draft.trustLevel === "AUTO_PUBLISH",
+            })
+          }
         >
           {busy ? "Saving..." : "Save Settings"}
         </button>
@@ -485,6 +542,11 @@ const styles = {
     fontSize: 13,
     marginTop: 4,
   },
+  trustLine: {
+    color: "#dbeafe",
+    fontSize: 13,
+    marginTop: 6,
+  },
   link: {
     color: "#8fb3ff",
     textDecoration: "none",
@@ -514,7 +576,7 @@ const styles = {
   },
   settingsGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 160px",
+    gridTemplateColumns: "1fr 160px 220px",
     gap: 12,
     marginTop: 16,
   },
@@ -533,6 +595,16 @@ const styles = {
     color: "#f5f7fa",
     borderRadius: 10,
     padding: "10px 12px",
+  },
+  trustHelpBox: {
+    marginTop: 12,
+    background: "#101827",
+    border: "1px solid #243041",
+    borderRadius: 10,
+    padding: "10px 12px",
+    color: "#c9d1d9",
+    fontSize: 13,
+    lineHeight: 1.5,
   },
   checkboxGrid: {
     display: "grid",
