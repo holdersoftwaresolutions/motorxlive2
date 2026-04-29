@@ -912,4 +912,135 @@ export class YouTubeDiscoveryService {
     const holdingEvent = await this.createHoldingEventForYouTubeVideo(discovered);
     return holdingEvent.id;
   }
+
+    async listAutoCreatedEvents() {
+    return this.prisma.event.findMany({
+      where: {
+        eventSource: "YOUTUBE_AUTO" as any,
+        eventReviewStatus: {
+          in: ["NEEDS_REVIEW", "PUBLISHED", "ARCHIVED", "MERGED"] as any,
+        },
+      },
+      orderBy: [{ startAt: "desc" }],
+      include: {
+        category: true,
+        streams: {
+          orderBy: [{ updatedAt: "desc" }],
+        },
+        videos: {
+          orderBy: [{ createdAt: "desc" }],
+        },
+      },
+    });
+  }
+
+  async approveAutoCreatedEvent(id: string) {
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        eventReviewStatus: "PUBLISHED" as any,
+      },
+      include: {
+        streams: true,
+        videos: true,
+        category: true,
+      },
+    });
+  }
+
+  async archiveAutoCreatedEvent(id: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        streams: true,
+        videos: true,
+      },
+    });
+
+    if (!event) {
+      return { ok: false, error: "Auto-created event not found" };
+    }
+
+    if (event.eventSource !== "YOUTUBE_AUTO") {
+      return { ok: false, error: "Only YouTube auto-created events can be archived here" };
+    }
+
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        eventReviewStatus: "ARCHIVED" as any,
+      },
+      include: {
+        streams: true,
+        videos: true,
+        category: true,
+      },
+    });
+  }
+
+  async mergeAutoCreatedEvent(id: string, targetEventId: string) {
+    if (!targetEventId) {
+      return { ok: false, error: "targetEventId is required" };
+    }
+
+    if (id === targetEventId) {
+      return { ok: false, error: "Cannot merge an event into itself" };
+    }
+
+    const sourceEvent = await this.prisma.event.findUnique({
+      where: { id },
+      include: {
+        streams: true,
+        videos: true,
+      },
+    });
+
+    if (!sourceEvent) {
+      return { ok: false, error: "Auto-created event not found" };
+    }
+
+    if (sourceEvent.eventSource !== "YOUTUBE_AUTO") {
+      return { ok: false, error: "Only YouTube auto-created events can be merged here" };
+    }
+
+    const targetEvent = await this.prisma.event.findUnique({
+      where: { id: targetEventId },
+    });
+
+    if (!targetEvent) {
+      return { ok: false, error: "Target event not found" };
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const movedStreams = await tx.stream.updateMany({
+        where: { eventId: id },
+        data: { eventId: targetEventId },
+      });
+
+      const movedVideos = await tx.video.updateMany({
+        where: { eventId: id },
+        data: { eventId: targetEventId },
+      });
+
+      const updatedSource = await tx.event.update({
+        where: { id },
+        data: {
+          eventReviewStatus: "MERGED" as any,
+          mergedIntoEventId: targetEventId,
+        },
+      });
+
+      return {
+        movedStreams: movedStreams.count,
+        movedVideos: movedVideos.count,
+        sourceEvent: updatedSource,
+        targetEvent,
+      };
+    });
+
+    return {
+      ok: true,
+      ...result,
+    };
+  }
 }

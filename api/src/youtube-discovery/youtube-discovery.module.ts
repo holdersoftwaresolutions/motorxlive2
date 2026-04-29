@@ -6,10 +6,11 @@ import { YouTubeClient } from "./youtube-client";
 import { PrismaModule } from "../prisma/prisma.module";
 import { AuthModule } from "../auth/auth.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { YouTubeAutoEventsController } from "./youtube-auto-events.controller";
 
 @Module({
   imports: [PrismaModule, AuthModule, NotificationsModule],
-  controllers: [YouTubeDiscoveryController],
+  controllers: [YouTubeDiscoveryController, YouTubeAutoEventsController],
   providers: [YouTubeDiscoveryService, YouTubeDiscoveryCron, YouTubeClient],
   exports: [YouTubeDiscoveryService],
 })
