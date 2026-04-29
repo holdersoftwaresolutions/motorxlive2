@@ -48,6 +48,12 @@ model Event {
   category     Category? @relation(fields: [categoryId], references: [id])
   streams      Stream[]
   videos       Video[]
+
+  eventSource                    EventSource       @default(MANUAL)
+  eventReviewStatus              EventReviewStatus @default(PUBLISHED)
+  autoCreatedFromYoutubeVideoId   String?
+  autoCreatedFromYoutubeChannelId String?
+  mergedIntoEventId               String?
 }
 
 model Stream {
@@ -283,4 +289,16 @@ enum YouTubeTrustLevel {
   REVIEW_REQUIRED
   AUTO_INGEST_REVIEW
   AUTO_PUBLISH
+}
+
+enum EventSource {
+  MANUAL
+  YOUTUBE_AUTO
+}
+
+enum EventReviewStatus {
+  PUBLISHED
+  NEEDS_REVIEW
+  ARCHIVED
+  MERGED
 }

@@ -559,22 +559,9 @@ export class YouTubeDiscoveryService {
     discovered: any,
     options?: { eventId?: string }
   ) {
-    if (!options?.eventId) {
-      await this.prisma.youTubeDiscoveredVideo.update({
-        where: { id: discovered.id },
-        data: {
-          ingestionStatus: "READY_TO_INGEST",
-        },
-      });
+        const eventId = await this.resolveEventIdForIngestion(discovered, options);
 
-      return {
-        ok: false,
-        needsEvent: true,
-        error: "eventId is required to ingest this YouTube item as a stream",
-      };
-    }
-
-    const existing = await this.prisma.stream.findFirst({
+        const existing = await this.prisma.stream.findFirst({
       where: {
         youtubeVideoId: discovered.youtubeVideoId,
       },
@@ -612,7 +599,7 @@ export class YouTubeDiscoveryService {
 
     const created = await this.prisma.stream.create({
       data: {
-        eventId: options.eventId,
+        eventId,
         sourceType: "YOUTUBE" as any,
         provider: "YouTube",
         title: discovered.title || "YouTube Live Feed",
@@ -643,20 +630,7 @@ export class YouTubeDiscoveryService {
     discovered: any,
     options?: { eventId?: string }
   ) {
-    if (!options?.eventId) {
-      await this.prisma.youTubeDiscoveredVideo.update({
-        where: { id: discovered.id },
-        data: {
-          ingestionStatus: "READY_TO_INGEST",
-        },
-      });
-
-      return {
-        ok: false,
-        needsEvent: true,
-        error: "eventId is required to ingest this YouTube item as a video",
-      };
-    }
+    const eventId = await this.resolveEventIdForIngestion(discovered, options);
 
     const existing = await this.prisma.video.findFirst({
       where: {
@@ -696,7 +670,7 @@ export class YouTubeDiscoveryService {
 
     const created = await this.prisma.video.create({
       data: {
-        eventId: options.eventId,
+        eventId,
         sourceType: "YOUTUBE" as any,
         provider: "YouTube",
         title: discovered.title || "YouTube Video",
@@ -822,5 +796,120 @@ export class YouTubeDiscoveryService {
         channel: true,
       },
     });
+  }
+
+    private slugify(value: string) {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80);
+  }
+
+  private async getUniqueEventSlug(baseTitle: string) {
+    const base = this.slugify(baseTitle || "youtube-event") || "youtube-event";
+    let slug = base;
+    let counter = 2;
+
+    while (await this.prisma.event.findUnique({ where: { slug } })) {
+      slug = `${base}-${counter}`;
+      counter += 1;
+    }
+
+    return slug;
+  }
+
+  private async findCategoryIdForYouTubeCategory(category?: string | null) {
+    if (!category) return null;
+
+    const categoryNameMap: Record<string, string[]> = {
+      DRAG_RACING: ["Drag Racing", "Racing", "Motorsports"],
+      OFFROAD: ["Offroad", "Off-Road", "Motorsports"],
+      SXS_UTV: ["SXS / UTV", "UTV", "Motorsports"],
+      MOTORSPORTS_PODCAST: ["Podcasts", "Motorsports"],
+      GENERAL_MOTORSPORTS: ["Motorsports"],
+      TRACK_CHANNEL: ["Tracks", "Motorsports"],
+      EVENT_PROMOTER: ["Events", "Motorsports"],
+      CREATOR_MEDIA: ["Media", "Motorsports"],
+    };
+
+    const names = categoryNameMap[category] || ["Motorsports"];
+
+    const found = await this.prisma.category.findFirst({
+      where: {
+        OR: names.map((name) => ({
+          name: {
+            equals: name,
+            mode: "insensitive",
+          },
+        })),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return found?.id || null;
+  }
+
+  private async createHoldingEventForYouTubeVideo(discovered: any) {
+    const existing = await this.prisma.event.findFirst({
+      where: {
+        autoCreatedFromYoutubeVideoId: discovered.youtubeVideoId,
+        eventSource: "YOUTUBE_AUTO" as any,
+      },
+    });
+
+    if (existing) return existing;
+
+    const startAt =
+      discovered.scheduledStartTime ||
+      discovered.actualStartTime ||
+      discovered.publishedAt ||
+      new Date();
+
+    const endAt = new Date(new Date(startAt).getTime() + 4 * 60 * 60 * 1000);
+
+    const title = discovered.title || "YouTube Live Event";
+    const slug = await this.getUniqueEventSlug(`youtube-${title}`);
+
+    const categoryId = await this.findCategoryIdForYouTubeCategory(
+      discovered.channel?.category
+    );
+
+    const data: any = {
+      title,
+      slug,
+      description: discovered.description || null,
+      startAt: new Date(startAt),
+      endAt,
+      heroImageUrl: discovered.thumbnailUrl || null,
+      eventSource: "YOUTUBE_AUTO",
+      eventReviewStatus: "NEEDS_REVIEW",
+      autoCreatedFromYoutubeVideoId: discovered.youtubeVideoId,
+      autoCreatedFromYoutubeChannelId: discovered.youtubeChannelId,
+      venueName: discovered.channel?.title || "YouTube",
+      city: null,
+      state: null,
+    };
+
+    if (categoryId) {
+      data.categoryId = categoryId;
+    }
+
+    return this.prisma.event.create({
+      data,
+    });
+  }
+
+  private async resolveEventIdForIngestion(
+    discovered: any,
+    options?: { eventId?: string }
+  ) {
+    if (options?.eventId) return options.eventId;
+
+    const holdingEvent = await this.createHoldingEventForYouTubeVideo(discovered);
+    return holdingEvent.id;
   }
 }
