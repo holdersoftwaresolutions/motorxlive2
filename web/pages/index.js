@@ -147,11 +147,7 @@ export default function HomePage() {
         const lng = String(position.coords.longitude);
 
         setLocationMode("device");
-        setSearch((s) => ({
-          ...s,
-          lat,
-          lng,
-        }));
+        setSearch((s) => ({ ...s, lat, lng }));
         setResolvedLocationLabel("Showing nearby events from your current location");
         setLocationStatus("Using your current location.");
 
@@ -218,10 +214,7 @@ export default function HomePage() {
   function handleLocationInputChange(value) {
     setLocationMode("text");
     setResolvedLocationLabel("");
-    setSearch((s) => ({
-      ...s,
-      locationText: value,
-    }));
+    setSearch((s) => ({ ...s, locationText: value }));
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
@@ -290,11 +283,7 @@ export default function HomePage() {
         const nextLng = String(position.coords.longitude);
 
         setLocationMode("device");
-        setSearch((s) => ({
-          ...s,
-          lat: nextLat,
-          lng: nextLng,
-        }));
+        setSearch((s) => ({ ...s, lat: nextLat, lng: nextLng }));
         setResolvedLocationLabel("Using your current location");
         setLocationStatus("Using your current location.");
 
@@ -303,9 +292,7 @@ export default function HomePage() {
       },
       (geoError) => {
         setError(getGeolocationErrorMessage(geoError));
-        setLocationStatus(
-          "Location not available. Search by city, state, or ZIP instead."
-        );
+        setLocationStatus("Location not available. Search by city, state, or ZIP instead.");
         setLocating(false);
       },
       {
@@ -360,7 +347,46 @@ export default function HomePage() {
     }
   }
 
-  function handleReset() {
+  function hasLiveStream(event) {
+    const streams = event.streams || event.liveStreams || [];
+    return streams.some(
+      (stream) => stream.lifecycle === "LIVE" && stream.moderationStatus === "APPROVED"
+    );
+  }
+
+  function sortEventsLiveFirst(events = []) {
+    return [...events].sort((a, b) => {
+      const aLive = hasLiveStream(a);
+      const bLive = hasLiveStream(b);
+
+      if (aLive && !bLive) return -1;
+      if (!aLive && bLive) return 1;
+
+      const aStart = a.startAt ? new Date(a.startAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const bStart = b.startAt ? new Date(b.startAt).getTime() : Number.MAX_SAFE_INTEGER;
+
+      return aStart - bStart;
+    });
+  }
+
+  function getLiveEvents() {
+    const allEvents = [
+      ...(nearbyEventsData?.items || []),
+      ...(upcomingEventsData?.items || []),
+    ];
+
+    const unique = new Map();
+
+    allEvents.forEach((event) => {
+      if (hasLiveStream(event)) {
+        unique.set(event.id, event);
+      }
+    });
+
+    return Array.from(unique.values());
+  }
+
+    function handleReset() {
     setSearch({
       q: "",
       locationText: "",
@@ -379,6 +405,8 @@ export default function HomePage() {
     loadDefault();
     tryAutoLoadNearby();
   }
+
+  const liveEvents = getLiveEvents();
 
   return (
     <>
@@ -534,11 +562,7 @@ export default function HomePage() {
                   {searching ? "Searching..." : "Search"}
                 </button>
 
-                <button
-                  type="button"
-                  style={styles.secondaryButton}
-                  onClick={handleReset}
-                >
+                <button type="button" style={styles.secondaryButton} onClick={handleReset}>
                   Reset
                 </button>
               </div>
@@ -557,6 +581,23 @@ export default function HomePage() {
             ) : null}
           </section>
 
+          {liveEvents.length > 0 ? (
+            <section style={styles.liveNowSection}>
+              <div style={styles.sectionHeader}>
+                <h2 style={styles.sectionTitle}>LIVE NOW</h2>
+              </div>
+
+              <div style={styles.liveNowScroller}>
+                {liveEvents.map((event) => (
+                  <div key={event.id} style={styles.liveNowCard}>
+                    <div style={styles.liveBadgeLarge}>LIVE</div>
+                    <EventCard event={event} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section style={styles.section}>
             <div style={styles.sectionHeader}>
               <h2 style={styles.sectionTitle}>Nearby Events</h2>
@@ -570,9 +611,15 @@ export default function HomePage() {
               <p style={styles.mutedText}>No nearby events found yet.</p>
             ) : (
               <div style={styles.eventGrid}>
-                {nearbyEventsData.items.map((event) => (
+                {sortEventsLiveFirst(nearbyEventsData.items).map((event) => (
                   <div key={event.id}>
-                    <EventCard event={event} />
+                    <div style={styles.eventCardWrap}>
+                      {hasLiveStream(event) ? (
+                        <div style={styles.liveBadge}>LIVE</div>
+                      ) : null}
+                      <EventCard event={event} />
+                    </div>
+
                     {event.distanceMiles != null ? (
                       <p style={styles.distanceText}>
                         {event.distanceMiles.toFixed(1)} miles away
@@ -597,8 +644,13 @@ export default function HomePage() {
               <p style={styles.mutedText}>No upcoming events found.</p>
             ) : (
               <div style={styles.eventGrid}>
-                {upcomingEventsData.items.map((event) => (
-                  <EventCard key={event.id} event={event} />
+                {sortEventsLiveFirst(upcomingEventsData.items).map((event) => (
+                  <div key={event.id} style={styles.eventCardWrap}>
+                    {hasLiveStream(event) ? (
+                      <div style={styles.liveBadge}>LIVE</div>
+                    ) : null}
+                    <EventCard event={event} />
+                  </div>
                 ))}
               </div>
             )}
@@ -786,10 +838,57 @@ const styles = {
     opacity: 0.7,
     cursor: "not-allowed",
   },
+  liveNowSection: {
+    marginTop: 36,
+    background: "#180b0b",
+    border: "1px solid #7f1d1d",
+    borderRadius: 16,
+    padding: 18,
+  },
+  liveNowScroller: {
+    display: "flex",
+    gap: 16,
+    overflowX: "auto",
+    paddingBottom: 6,
+  },
+  liveNowCard: {
+    position: "relative",
+    minWidth: 320,
+    maxWidth: 360,
+    flex: "0 0 auto",
+  },
+  liveBadgeLarge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    background: "#ff0000",
+    color: "#fff",
+    fontWeight: "bold",
+    padding: "6px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    zIndex: 5,
+    letterSpacing: 0.8,
+  },
   eventGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
     gap: 18,
+  },
+  eventCardWrap: {
+    position: "relative",
+  },
+  liveBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    background: "#ff0000",
+    color: "#fff",
+    fontWeight: "bold",
+    padding: "4px 8px",
+    borderRadius: 6,
+    fontSize: 12,
+    zIndex: 5,
   },
   mutedText: {
     color: "#9aa4af",

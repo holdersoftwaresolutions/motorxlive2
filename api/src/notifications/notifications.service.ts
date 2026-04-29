@@ -23,26 +23,32 @@ export class NotificationsService {
       },
     });
 
-    if (!stream) {
-      return { ok: false, error: "Stream not found" };
-    }
-
+    if (!stream) return { ok: false, error: "Stream not found" };
     if (stream.moderationStatus !== "APPROVED") {
       return { ok: false, error: "Stream is not approved" };
+    }
+
+    const existing = await this.prisma.notificationLog.findFirst({
+      where: {
+        type: "LIVE_NOW",
+        streamId: stream.id,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existing) {
+      return { ok: true, skipped: true, reason: "LIVE_NOW already created", notification: existing };
     }
 
     const eventTitle = stream.event?.title || "MotorXLive Event";
     const streamTitle = stream.title || "Live Feed";
 
-    const title = `LIVE NOW: ${eventTitle}`;
-    const message = `${streamTitle} is live on MotorXLive.`;
-
     const notification = await this.prisma.notificationLog.create({
       data: {
         type: "LIVE_NOW",
         status: "CREATED",
-        title,
-        message,
+        title: `LIVE NOW: ${eventTitle}`,
+        message: `${streamTitle} is live on MotorXLive.`,
         eventId: stream.eventId,
         eventSlug: stream.event?.slug || null,
         streamId: stream.id,
@@ -60,10 +66,30 @@ export class NotificationsService {
       },
     });
 
-    return {
-      ok: true,
-      notification,
-    };
+    return { ok: true, notification };
+  }
+
+  async createLiveNowIfStreamIsLive(streamId: string) {
+    const stream = await this.prisma.stream.findUnique({
+      where: { id: streamId },
+      select: {
+        id: true,
+        lifecycle: true,
+        moderationStatus: true,
+      },
+    });
+
+    if (!stream) return { ok: false, error: "Stream not found" };
+
+    if (stream.lifecycle !== "LIVE") {
+      return { ok: true, skipped: true, reason: "Stream is not LIVE" };
+    }
+
+    if (stream.moderationStatus !== "APPROVED") {
+      return { ok: true, skipped: true, reason: "Stream is not approved" };
+    }
+
+    return this.createLiveNowNotification(streamId);
   }
 
   async markNotificationSent(id: string) {

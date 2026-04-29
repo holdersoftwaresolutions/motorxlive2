@@ -111,6 +111,28 @@ export class PublicEventsController {
             sortOrder: true,
           },
         },
+        streams: {
+          where: {
+            moderationStatus: "APPROVED",
+            lifecycle: {
+              in: ["LIVE", "READY"],
+            },
+          },
+          select: {
+            id: true,
+            lifecycle: true,
+            moderationStatus: true,
+            isPrimary: true,
+            priority: true,
+            title: true,
+            youtubeVideoId: true,
+          },
+          orderBy: [
+            { lifecycle: "desc" },
+            { isPrimary: "desc" },
+            { priority: "asc" },
+          ],
+        },
       },
     });
 
