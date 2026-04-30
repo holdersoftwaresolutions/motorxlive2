@@ -177,6 +177,26 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch("/api/public/events?page=1&pageSize=12");
+      const data = await res.json();
+
+      if (data?.items) {
+        setNearbyEventsData((prev) => ({
+          ...prev,
+          items: data.items,
+        }));
+      }
+    } catch (err) {
+      console.error("Auto-refresh failed", err);
+    }
+  }, 30000); // every 30 seconds
+
+  return () => clearInterval(interval);
+}, []);
+
   async function fetchSuggestions(value) {
     if (!value.trim()) {
       setSuggestions([]);
@@ -591,7 +611,9 @@ export default function HomePage() {
                 {liveEvents.map((event) => (
                   <div key={event.id} style={styles.liveNowCard}>
                     <div style={styles.liveBadgeLarge}>LIVE</div>
-                    <EventCard event={event} />
+                      <Link href={`/events/${event.slug}/live`} style={{ textDecoration: "none" }}>
+                        <EventCard event={event} />
+                      </Link>
                   </div>
                 ))}
               </div>
@@ -614,11 +636,21 @@ export default function HomePage() {
                 {sortEventsLiveFirst(nearbyEventsData.items).map((event) => (
                   <div key={event.id}>
                     <div style={styles.eventCardWrap}>
-                      {hasLiveStream(event) ? (
-                        <div style={styles.liveBadge}>LIVE</div>
-                      ) : null}
-                      <EventCard event={event} />
-                    </div>
+                      {hasLiveStream(event) && (
+                        <>
+                          <div style={styles.liveBadge}>LIVE</div>
+
+                          <Link
+                            href={`/events/${event.slug}/live`}
+                            style={styles.watchLiveOverlay}
+                          >
+                            ▶ WATCH LIVE
+                          </Link>
+                        </>
+                      )}
+
+                    <EventCard event={event} />
+                  </div>
 
                     {event.distanceMiles != null ? (
                       <p style={styles.distanceText}>
@@ -645,10 +677,20 @@ export default function HomePage() {
             ) : (
               <div style={styles.eventGrid}>
                 {sortEventsLiveFirst(upcomingEventsData.items).map((event) => (
-                  <div key={event.id} style={styles.eventCardWrap}>
-                    {hasLiveStream(event) ? (
-                      <div style={styles.liveBadge}>LIVE</div>
-                    ) : null}
+                  <div style={styles.eventCardWrap}>
+                    {hasLiveStream(event) && (
+                      <>
+                        <div style={styles.liveBadge}>LIVE</div>
+
+                        <Link
+                          href={`/events/${event.slug}/live`}
+                          style={styles.watchLiveOverlay}
+                        >
+                          ▶ WATCH LIVE
+                        </Link>
+                      </>
+                    )}
+
                     <EventCard event={event} />
                   </div>
                 ))}
@@ -916,4 +958,19 @@ const styles = {
     color: "#c9d1d9",
     fontSize: 14,
   },
+  watchLiveOverlay: {
+  position: "absolute",
+  bottom: 10,
+  left: 10,
+  right: 10,
+  background: "rgba(0,0,0,0.85)",
+  color: "#fff",
+  fontWeight: "bold",
+  textAlign: "center",
+  padding: "10px",
+  borderRadius: 8,
+  textDecoration: "none",
+  zIndex: 5,
+  border: "1px solid red",
+},
 };

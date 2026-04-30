@@ -24,6 +24,7 @@ function toEndOfDayIso(dateStr) {
 export default function AdminEventsPage() {
   const [categories, setCategories] = useState([]);
   const [events, setEvents] = useState([]);
+  const [autoEvents, setAutoEvents] = useState([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
 
@@ -61,13 +62,15 @@ export default function AdminEventsPage() {
       setMessage("");
       setMessageType("success");
 
-      const [categoriesRes, eventsRes] = await Promise.all([
+      const [categoriesRes, eventsRes, autoEventsRes] = await Promise.all([
         adminFetch("/api/admin/categories"),
         adminFetch("/api/admin/events"),
+        adminFetch("/api/admin/youtube-auto-events"),
       ]);
 
       const categoriesText = await categoriesRes.text();
       const eventsText = await eventsRes.text();
+      const autoEventsText = await autoEventsRes.text();
 
       if (!categoriesRes.ok) {
         throw new Error(`Categories request failed: ${categoriesText}`);
@@ -76,12 +79,25 @@ export default function AdminEventsPage() {
       if (!eventsRes.ok) {
         throw new Error(`Events request failed: ${eventsText}`);
       }
-
+      
+      if (!autoEventsRes.ok) {
+        throw new Error(`Auto events request failed: ${autoEventsText}`);
+      }
       const categoriesJson = categoriesText ? JSON.parse(categoriesText) : [];
       const eventsJson = eventsText ? JSON.parse(eventsText) : [];
+      const autoEventsJson = autoEventsText ? JSON.parse(autoEventsText) : [];
 
       setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
       setEvents(Array.isArray(eventsJson) ? eventsJson : []);
+      setAutoEvents(
+        Array.isArray(autoEventsJson)
+          ? autoEventsJson.filter(
+              (item) =>
+                item.eventReviewStatus !== "MERGED" &&
+                item.eventReviewStatus !== "ARCHIVED"
+            )
+          : []
+      );
     } catch (err) {
       setMessage(err.message || "Failed to load categories/events.");
       setMessageType("error");
@@ -210,6 +226,43 @@ export default function AdminEventsPage() {
       ...patch,
       slug: slugify(patch.title || ""),
     };
+
+    async function mergeAutoEventIntoEvent(autoEventId, targetEventId) {
+      if (!autoEventId || !targetEventId) {
+        setMessage("Select an auto-created event to merge.");
+        setMessageType("error");
+        return;
+      }
+
+      if (
+        !window.confirm(
+          "Move all streams/videos from this auto-created event into the selected event?"
+        )
+      ) {
+        return;
+      }
+
+      const res = await adminFetch(`/api/admin/youtube-auto-events/${autoEventId}/merge`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetEventId }),
+      });
+
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+
+      if (!res.ok || json?.ok === false) {
+        setMessage(json?.error || `Failed to merge auto event: ${text}`);
+        setMessageType("error");
+        return;
+      }
+
+      setMessage(
+        `Merged ${json.movedStreams || 0} stream(s) and ${json.movedVideos || 0} video(s).`
+      );
+      setMessageType("success");
+      loadAll();
+    }
 
     const res = await adminFetch(`/api/admin/events/${id}`, {
       method: "PATCH",
@@ -393,7 +446,9 @@ export default function AdminEventsPage() {
                 key={event.id}
                 event={event}
                 categories={categories}
+                autoEvents={autoEvents}
                 onSave={updateEvent}
+                onMergeAutoEvent={mergeAutoEventIntoEvent}
               />
             ))}
 
@@ -407,12 +462,14 @@ export default function AdminEventsPage() {
   );
 }
 
-function EventRow({ event, categories, onSave }) {
+function EventRow({ event, categories, autoEvents, onSave, onMergeAutoEvent }) {
   const [draft, setDraft] = useState({
     title: event.title || "",
     heroImageUrl: event.heroImageUrl || "",
     categoryId: event.categoryId || "",
   });
+
+  const [selectedAutoEventId, setSelectedAutoEventId] = useState("");
 
   const derivedSlug = useMemo(() => slugify(draft.title), [draft.title]);
 
@@ -445,6 +502,36 @@ function EventRow({ event, categories, onSave }) {
           </option>
         ))}
       </select>
+
+      <div style={styles.mergeBox}>
+        <select
+          style={styles.input}
+          value={selectedAutoEventId}
+          onChange={(e) => setSelectedAutoEventId(e.target.value)}
+        >
+          <option value="">Import from auto-created event...</option>
+          {(autoEvents || [])
+            .filter((item) => item.id !== event.id)
+            .map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title} — {item.streams?.length || 0} stream(s),{" "}
+                {item.videos?.length || 0} video(s)
+              </option>
+            ))}
+        </select>
+
+        <button
+          type="button"
+          style={{
+            ...styles.secondaryButton,
+            ...(!selectedAutoEventId ? styles.buttonDisabled : {}),
+          }}
+          disabled={!selectedAutoEventId}
+          onClick={() => onMergeAutoEvent(selectedAutoEventId, event.id)}
+        >
+          Import + Merge
+        </button>
+      </div>
 
       <button style={styles.secondaryButton} onClick={() => onSave(event.id, draft)}>
         Save
@@ -567,4 +654,10 @@ const styles = {
   mutedText: {
     color: "#9aa4af",
   },
+  mergeBox: {
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: 10,
+  alignItems: "center",
+},
 };
