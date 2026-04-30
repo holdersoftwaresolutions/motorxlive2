@@ -79,16 +79,18 @@ export default function AdminEventsPage() {
       if (!eventsRes.ok) {
         throw new Error(`Events request failed: ${eventsText}`);
       }
-      
+
       if (!autoEventsRes.ok) {
         throw new Error(`Auto events request failed: ${autoEventsText}`);
       }
+
       const categoriesJson = categoriesText ? JSON.parse(categoriesText) : [];
       const eventsJson = eventsText ? JSON.parse(eventsText) : [];
       const autoEventsJson = autoEventsText ? JSON.parse(autoEventsText) : [];
 
       setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
       setEvents(Array.isArray(eventsJson) ? eventsJson : []);
+
       setAutoEvents(
         Array.isArray(autoEventsJson)
           ? autoEventsJson.filter(
@@ -103,6 +105,7 @@ export default function AdminEventsPage() {
       setMessageType("error");
       setCategories([]);
       setEvents([]);
+      setAutoEvents([]);
     }
   }
 
@@ -227,43 +230,6 @@ export default function AdminEventsPage() {
       slug: slugify(patch.title || ""),
     };
 
-    async function mergeAutoEventIntoEvent(autoEventId, targetEventId) {
-      if (!autoEventId || !targetEventId) {
-        setMessage("Select an auto-created event to merge.");
-        setMessageType("error");
-        return;
-      }
-
-      if (
-        !window.confirm(
-        "Move all streams/videos from this auto-created event into the selected event?"
-        )
-      ) {
-      return;
-      }
-
-      const res = await adminFetch(`/api/admin/youtube-auto-events/${autoEventId}/merge`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetEventId }),
-      });
-
-      const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
-
-      if (!res.ok || json?.ok === false) {
-        setMessage(json?.error || `Failed to merge auto event: ${text}`);
-        setMessageType("error");
-        return;
-      }
-
-      setMessage(
-        `Merged ${json.movedStreams || 0} stream(s) and ${json.movedVideos || 0} video(s).`
-      );
-      setMessageType("success");
-      loadAll();
-    }
-
     const res = await adminFetch(`/api/admin/events/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -279,6 +245,43 @@ export default function AdminEventsPage() {
     }
 
     setMessage("Event updated.");
+    setMessageType("success");
+    loadAll();
+  }
+
+  async function mergeAutoEventIntoEvent(autoEventId, targetEventId) {
+    if (!autoEventId || !targetEventId) {
+      setMessage("Select an auto-created event to merge.");
+      setMessageType("error");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Move all streams/videos from this auto-created event into the selected event?"
+      )
+    ) {
+      return;
+    }
+
+    const res = await adminFetch(`/api/admin/youtube-auto-events/${autoEventId}/merge`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetEventId }),
+    });
+
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+
+    if (!res.ok || json?.ok === false) {
+      setMessage(json?.error || `Failed to merge auto event: ${text}`);
+      setMessageType("error");
+      return;
+    }
+
+    setMessage(
+      `Merged ${json.movedStreams || 0} stream(s) and ${json.movedVideos || 0} video(s).`
+    );
     setMessageType("success");
     loadAll();
   }
@@ -389,9 +392,7 @@ export default function AdminEventsPage() {
                   </div>
                 ) : null}
 
-                {uploading ? (
-                  <div style={styles.helperText}>Uploading flyer...</div>
-                ) : null}
+                {uploading ? <div style={styles.helperText}>Uploading flyer...</div> : null}
 
                 {flyerUploaded && !uploading ? (
                   <div style={styles.successText}>Flyer ready.</div>
@@ -452,9 +453,7 @@ export default function AdminEventsPage() {
               />
             ))}
 
-            {events.length === 0 ? (
-              <p style={styles.mutedText}>No events yet.</p>
-            ) : null}
+            {events.length === 0 ? <p style={styles.mutedText}>No events yet.</p> : null}
           </div>
         </section>
       </div>
@@ -470,7 +469,6 @@ function EventRow({ event, categories, autoEvents, onSave, onMergeAutoEvent }) {
   });
 
   const [selectedAutoEventId, setSelectedAutoEventId] = useState("");
-
   const derivedSlug = useMemo(() => slugify(draft.title), [draft.title]);
 
   return (
@@ -569,6 +567,16 @@ const styles = {
   rowCard: {
     display: "grid",
     gap: 10,
+    border: "1px solid #243041",
+    borderRadius: 12,
+    padding: 12,
+    background: "#0f141a",
+  },
+  mergeBox: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: 10,
+    alignItems: "center",
   },
   input: {
     width: "100%",
@@ -654,10 +662,4 @@ const styles = {
   mutedText: {
     color: "#9aa4af",
   },
-  mergeBox: {
-  display: "grid",
-  gridTemplateColumns: "1fr auto",
-  gap: 10,
-  alignItems: "center",
-},
 };
