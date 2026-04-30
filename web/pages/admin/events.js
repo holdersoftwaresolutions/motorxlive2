@@ -236,10 +236,10 @@ export default function AdminEventsPage() {
 
       if (
         !window.confirm(
-          "Move all streams/videos from this auto-created event into the selected event?"
+        "Move all streams/videos from this auto-created event into the selected event?"
         )
       ) {
-        return;
+      return;
       }
 
       const res = await adminFetch(`/api/admin/youtube-auto-events/${autoEventId}/merge`, {
