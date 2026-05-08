@@ -26,6 +26,7 @@ import { YouTubeDiscoveryModule } from "./youtube-discovery/youtube-discovery.mo
 
 import { NotificationsModule } from "./notifications/notifications.module";
 import { ScheduleModule } from "@nestjs/schedule";
+import { AuditModule } from "./audit/audit.module";
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ScheduleModule } from "@nestjs/schedule";
     YouTubeDiscoveryModule,
     NotificationsModule,
     ScheduleModule.forRoot(),
+    AuditModule,
   ],
   controllers: [
     HealthController,

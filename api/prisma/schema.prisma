@@ -209,6 +209,66 @@ model YouTubeApiUsageLog {
   createdAt DateTime @default(now())
 }
 
+model AuditLog {
+  id          String          @id @default(cuid())
+  action      String
+  resource    String?
+  resourceId  String?
+  actorType   AuditActorType @default(SYSTEM)
+  actorId     String?
+  actorEmail  String?
+  severity    AuditSeverity  @default(INFO)
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime       @default(now())
+
+  @@index([action])
+  @@index([resource])
+  @@index([resourceId])
+  @@index([actorId])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+model SecurityEventLog {
+  id          String        @id @default(cuid())
+  eventType   String
+  severity    AuditSeverity @default(WARN)
+  actorId     String?
+  actorEmail  String?
+  ipAddress   String?
+  userAgent   String?
+  path        String?
+  method      String?
+  message     String?
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+
+  @@index([eventType])
+  @@index([severity])
+  @@index([actorId])
+  @@index([ipAddress])
+  @@index([createdAt])
+}
+
+model JobRunLog {
+  id          String        @id @default(cuid())
+  jobName     String
+  status      String
+  startedAt   DateTime      @default(now())
+  finishedAt  DateTime?
+  durationMs  Int?
+  severity    AuditSeverity @default(INFO)
+  summary     String?
+  metadata    Json?
+  error       String?
+
+  @@index([jobName])
+  @@index([status])
+  @@index([startedAt])
+}
+
 enum UserRole {
   ADMIN
   STREAMER
@@ -301,4 +361,19 @@ enum EventReviewStatus {
   NEEDS_REVIEW
   ARCHIVED
   MERGED
+}
+
+enum AuditSeverity {
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
+
+enum AuditActorType {
+  SYSTEM
+  USER
+  ADMIN
+  CONTRIBUTOR
+  ANONYMOUS
 }
