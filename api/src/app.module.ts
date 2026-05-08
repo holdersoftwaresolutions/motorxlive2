@@ -6,6 +6,8 @@ import { GeocodingModule } from "./geocoding/geocoding.module";
 import { MapboxLocationModule } from "./geocoding/mapbox-location.module";
 import { AuthModule } from "./auth/auth.module";
 import { AuthController } from "./auth/auth.controller";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 
 import { PublicVideosController } from "./public/public-videos.controller";
 import { PublicCategoriesController } from "./public/public-categories.controller";
@@ -27,6 +29,13 @@ import { ScheduleModule } from "@nestjs/schedule";
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      {
+        name: "default",
+        ttl: 60000,
+        limit: 120,
+      },
+    ]),
     PrismaModule,
     StorageModule,
     GeocodingModule,
@@ -50,6 +59,12 @@ import { ScheduleModule } from "@nestjs/schedule";
     AdminController,
     ContributorController,
     YouTubeController,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },  
   ],
 })
 export class AppModule {}

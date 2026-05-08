@@ -3,9 +3,11 @@ import { YouTubeDiscoveryService } from "./youtube-discovery.service";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
+import { Throttle } from "@nestjs/throttler";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
+@Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller("admin/youtube-discovery")
 export class YouTubeDiscoveryController {
   constructor(private readonly discovery: YouTubeDiscoveryService) {}

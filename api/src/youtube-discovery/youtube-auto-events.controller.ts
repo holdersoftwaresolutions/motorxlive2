@@ -3,9 +3,11 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
 import { YouTubeDiscoveryService } from "./youtube-discovery.service";
+import { Throttle } from "@nestjs/throttler";
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
+@Throttle({ default: { limit: 30, ttl: 60000 } })
 @Controller("admin/youtube-auto-events")
 export class YouTubeAutoEventsController {
   constructor(private readonly discovery: YouTubeDiscoveryService) {}

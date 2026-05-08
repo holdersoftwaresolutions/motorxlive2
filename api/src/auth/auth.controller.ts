@@ -13,6 +13,7 @@ import { LoginDto } from "./auth.dto";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 import { RolesGuard } from "./roles.guard";
+import { Throttle } from "@nestjs/throttler";
 
 @Controller("auth")
 export class AuthController {
@@ -42,6 +43,7 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60 } })
   @Post("login")
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.validateUser(dto.email, dto.password);
@@ -64,6 +66,7 @@ export class AuthController {
     };
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60 } })
   @Post("refresh")
   async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
     const refreshToken = req.cookies?.motorxlive_refresh_token;

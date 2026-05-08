@@ -22,6 +22,7 @@ import { RejectSubmissionDto } from "./admin-review.dto";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
+import { Throttle } from "@nestjs/throttler";
 
 function extractYouTubeVideoId(input?: string | null): string | null {
   if (!input) return null;
@@ -56,6 +57,7 @@ function extractYouTubeVideoId(input?: string | null): string | null {
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("ADMIN")
+@Throttle({ default: { limit: 5, ttl: 60 } })
 @Controller("admin")
 export class AdminController {
   constructor(private readonly prisma: PrismaService) {}
