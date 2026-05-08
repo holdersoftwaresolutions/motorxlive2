@@ -6,7 +6,12 @@ import { AppModule } from "./app.module";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.set("trust proxy", 1);
+  const httpAdapter = app.getHttpAdapter();
+  const instance = httpAdapter.getInstance();
+
+  if (instance?.set) {
+    instance.set("trust proxy", 1);
+  }
 
   app.use(
     helmet({
