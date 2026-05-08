@@ -38,8 +38,8 @@ export class YouTubeDiscoveryService {
     terms?: string[];
     maxResultsPerSearch?: number;
   }) {
-    const terms = options?.terms?.length ? options.terms : DEFAULT_SEARCH_TERMS;
-    const maxResults = options?.maxResultsPerSearch ?? 5;
+    const terms = this.getDiscoveryTerms(options);
+    const maxResults = this.getDiscoveryMaxResults(options);
 
     const discoveredVideoIds = new Set<string>();
 
@@ -229,6 +229,31 @@ export class YouTubeDiscoveryService {
     };
   }
 
+    private getEnvInt(name: string, defaultValue: number) {
+    const raw = process.env[name];
+    const parsed = Number(raw);
+
+    if (!raw || Number.isNaN(parsed) || parsed < 0) {
+      return defaultValue;
+    }
+
+    return parsed;
+  }
+
+  private getDiscoveryTerms(options?: { terms?: string[] }) {
+    const maxTerms = this.getEnvInt("YOUTUBE_DISCOVERY_MAX_SEARCH_TERMS", 5);
+    const terms = options?.terms?.length ? options.terms : DEFAULT_SEARCH_TERMS;
+
+    return terms.slice(0, maxTerms);
+  }
+
+  private getDiscoveryMaxResults(options?: { maxResultsPerSearch?: number }) {
+    const envMax = this.getEnvInt("YOUTUBE_DISCOVERY_MAX_RESULTS_PER_TERM", 3);
+    const requested = options?.maxResultsPerSearch ?? envMax;
+
+    return Math.max(1, Math.min(requested, envMax));
+  }
+
   private async upsertDiscoveredVideo(video: any, category: any) {
     const videoId = video.id;
     const snippet = video.snippet || {};
@@ -377,7 +402,7 @@ export class YouTubeDiscoveryService {
   }
 
   async monitorApprovedChannels() {
-    const channels = await this.prisma.youTubeDiscoveredChannel.findMany({
+    const allChannels = await this.prisma.youTubeDiscoveredChannel.findMany({
       where: {
         discoveryStatus: "APPROVED",
         uploadsPlaylistId: {
@@ -386,6 +411,9 @@ export class YouTubeDiscoveryService {
       },
       orderBy: [{ priority: "asc" }, { score: "desc" }],
     });
+
+    const maxChannels = this.getEnvInt("YOUTUBE_MONITOR_MAX_CHANNELS", 10);
+    const channels = allChannels.slice(0, maxChannels);
 
     const results = [];
 
@@ -757,11 +785,13 @@ export class YouTubeDiscoveryService {
         },
       },
     });
-
+    const maxItems = this.getEnvInt("YOUTUBE_AUTO_INGEST_MAX_ITEMS", 25);
+    let attempted = 0;
     const results = [];
 
     for (const channel of channels) {
       for (const video of channel.videos) {
+        if (attempted >= maxItems) break;
         if (channel.trustLevel === "REVIEW_REQUIRED") continue;
 
         const ingestAsStream = this.shouldIngestAsStream(video);
@@ -771,7 +801,7 @@ export class YouTubeDiscoveryService {
         if (!ingestAsStream && !channel.autoIngestVideos && !channel.autoIngestPodcasts) {
           continue;
         }
-
+        attempted += 1;
         results.push(
           await this.ingestDiscoveredVideo(video.id, {
             eventId: options?.eventId,
@@ -783,7 +813,7 @@ export class YouTubeDiscoveryService {
     return {
       ok: true,
       channelCount: channels.length,
-      attempted: results.length,
+      attempted,
       processed: results.length,
       results,
     };
@@ -909,9 +939,25 @@ export class YouTubeDiscoveryService {
   ) {
     if (options?.eventId) return options.eventId;
 
+    const maxAutoEvents = this.getEnvInt("YOUTUBE_AUTO_EVENT_MAX_CREATE", 10);
+
+    const createdToday = await this.prisma.event.count({
+        where: {
+            eventSource: "YOUTUBE_AUTO" as any,
+            startAt: {
+            gte: new Date(new Date().toISOString().slice(0, 10)),
+            },
+        },
+        });
+
+        if (createdToday >= maxAutoEvents) {
+        throw new Error(
+            `Auto-created event cap reached for today: ${maxAutoEvents}`
+        );
+    }
     const holdingEvent = await this.createHoldingEventForYouTubeVideo(discovered);
     return holdingEvent.id;
-  }
+    }
 
     async listAutoCreatedEvents() {
     return this.prisma.event.findMany({
