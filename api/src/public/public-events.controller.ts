@@ -13,18 +13,42 @@ export class PublicEventsController {
     @Query("lat") lat?: string,
     @Query("lng") lng?: string,
     @Query("radiusMiles") radiusMiles?: string,
-    @Query("from") from?: string
+    @Query("from") from?: string,
+    @Query("categorySlug") categorySlug?: string,
+    @Query("category") category?: string
   ) {
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const take = Math.min(Math.max(parseInt(pageSize, 10) || 12, 1), 50);
     const skip = (pageNumber - 1) * take;
 
     const where: any = {
-      // 🔥 CRITICAL: hide unreviewed auto events
       eventReviewStatus: {
         notIn: ["NEEDS_REVIEW", "ARCHIVED", "MERGED"],
       },
     };
+
+    const requestedCategorySlug = (categorySlug || category || "").trim();
+
+    if (requestedCategorySlug) {
+      const matchedCategory = await this.prisma.category.findUnique({
+        where: {
+          slug: requestedCategorySlug,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!matchedCategory) {
+        return {
+          items: [],
+          page: pageNumber,
+          pageSize: take,
+        };
+      }
+
+      where.categoryId = matchedCategory.id;
+    }
 
     if (from) {
       where.startAt = {
@@ -34,30 +58,10 @@ export class PublicEventsController {
 
     if (q?.trim()) {
       where.OR = [
-        {
-          title: {
-            contains: q.trim(),
-            mode: "insensitive",
-          },
-        },
-        {
-          venueName: {
-            contains: q.trim(),
-            mode: "insensitive",
-          },
-        },
-        {
-          city: {
-            contains: q.trim(),
-            mode: "insensitive",
-          },
-        },
-        {
-          state: {
-            contains: q.trim(),
-            mode: "insensitive",
-          },
-        },
+        { title: { contains: q.trim(), mode: "insensitive" } },
+        { venueName: { contains: q.trim(), mode: "insensitive" } },
+        { city: { contains: q.trim(), mode: "insensitive" } },
+        { state: { contains: q.trim(), mode: "insensitive" } },
       ];
     }
 
@@ -68,8 +72,6 @@ export class PublicEventsController {
       orderBy: [{ startAt: "asc" }],
       include: {
         category: true,
-
-        // 🔥 THIS IS WHAT YOUR FRONTEND NEEDS
         streams: {
           where: {
             moderationStatus: "APPROVED",
