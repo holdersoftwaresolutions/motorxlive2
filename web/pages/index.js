@@ -421,10 +421,7 @@ export default function HomePage() {
               </Link>
               <Link href="/contributor/login" style={styles.navButton}>
                 Streamers
-              </Link>
-              <Link href="/admin/login" style={styles.navButton}>
-                Admin
-              </Link>
+              </Link>              
             </nav>
           </div>
         </header>
