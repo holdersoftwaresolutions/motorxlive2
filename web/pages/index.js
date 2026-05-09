@@ -416,10 +416,10 @@ export default function HomePage() {
             </Link>
 
             <nav style={styles.nav}>
-              <Link href="/" style={styles.navLink}>
+              <Link href="/" style={styles.navButton}>
                 Events
               </Link>
-              <Link href="/contributor/login" style={styles.navLink}>
+              <Link href="/contributor/login" style={styles.navButton}>
                 Streamers
               </Link>
               <Link href="/admin/login" style={styles.navButton}>
@@ -444,7 +444,7 @@ export default function HomePage() {
                   <a href="#search-events" style={styles.button}>
                     Find Events
                   </a>
-                  <Link href="/contributor/login" style={styles.secondaryButton}>
+                  <Link href="/contributor/login" style={styles.button}>
                     Add Your Stream
                   </Link>
                 </div>
