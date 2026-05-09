@@ -4,9 +4,11 @@ import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { AuditExceptionFilter } from "./audit/audit-exception.filter";
 import { AuditService } from "./audit/audit.service";
+import cookieParser = require("cookie-parser");
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
 
   const httpAdapter = app.getHttpAdapter();
   const instance = httpAdapter.getInstance();
