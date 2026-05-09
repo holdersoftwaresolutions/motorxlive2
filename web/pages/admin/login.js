@@ -6,8 +6,18 @@ import { BRAND, brandStyles } from "../../lib/brand";
 const LOGO_SRC = "/branding/motorxlive-logo-bg.png";
 
 function getDestinationForRole(role) {
-  if (role === "ADMIN") return "/admin";
-  if (role === "STREAMER" || role === "MEDIA") return "/contributor";
+  const normalized = String(role || "").toUpperCase();
+
+  if (normalized === "ADMIN") return "/admin";
+
+  if (
+    normalized === "STREAMER" ||
+    normalized === "MEDIA" ||
+    normalized === "CONTRIBUTOR"
+  ) {
+    return "/contributor";
+  }
+
   return "/";
 }
 
