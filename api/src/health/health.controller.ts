@@ -2,14 +2,18 @@ import { Controller, Get, Head } from "@nestjs/common";
 
 @Controller()
 export class HealthController {
-  @Get()
-  root() {
+  private response() {
     return {
       ok: true,
       status: "UP",
       service: "motorxlive-api",
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get()
+  root() {
+    return this.response();
   }
 
   @Head()
@@ -19,16 +23,21 @@ export class HealthController {
 
   @Get("health")
   health() {
-    return {
-      ok: true,
-      status: "UP",
-      service: "motorxlive-api",
-      timestamp: new Date().toISOString(),
-    };
+    return this.response();
   }
 
   @Head("health")
   healthHead() {
+    return;
+  }
+
+  @Get("healthz")
+  healthz() {
+    return this.response();
+  }
+
+  @Head("healthz")
+  healthzHead() {
     return;
   }
 }
