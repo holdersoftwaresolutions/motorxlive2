@@ -1,5 +1,6 @@
 export async function requireContributorPage(ctx) {
   const cookie = ctx.req.headers.cookie || "";
+
   const baseUrl =
     process.env.INTERNAL_API_BASE_URL ||
     process.env.API_BASE_URL ||
@@ -7,6 +8,7 @@ export async function requireContributorPage(ctx) {
 
   try {
     const res = await fetch(`${baseUrl}/auth/me`, {
+      method: "GET",
       headers: {
         cookie,
       },
@@ -22,9 +24,9 @@ export async function requireContributorPage(ctx) {
     }
 
     const json = await res.json();
-    const role = json?.user?.role;
+    const role = String(json?.user?.role || "").toUpperCase();
 
-    if (!role || !["STREAMER", "MEDIA", "ADMIN"].includes(role)) {
+    if (!["STREAMER", "MEDIA", "CONTRIBUTOR", "ADMIN"].includes(role)) {
       return {
         redirect: {
           destination: "/",
