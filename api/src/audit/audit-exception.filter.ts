@@ -3,6 +3,7 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  HttpStatus,
   UnauthorizedException,
   ForbiddenException,
 } from "@nestjs/common";
@@ -15,27 +16,23 @@ export class AuditExceptionFilter implements ExceptionFilter {
   async catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const req = ctx.getRequest();
+    const res = ctx.getResponse();
 
-    const ip =
-      req.headers["x-forwarded-for"] ||
-      req.socket?.remoteAddress ||
-      null;
-
+    const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress || null;
     const userAgent = req.headers["user-agent"] || null;
 
     const path = req.url;
     const method = req.method;
 
-    let status = 500;
-    let message = "Internal server error";
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message: any = "Internal server error";
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      const res = exception.getResponse() as any;
-      message = res?.message || exception.message;
+      const response = exception.getResponse() as any;
+      message = response?.message || exception.message;
     }
 
-    // 🔥 ONLY log important security events
     if (
       exception instanceof UnauthorizedException ||
       exception instanceof ForbiddenException ||
@@ -49,13 +46,15 @@ export class AuditExceptionFilter implements ExceptionFilter {
         userAgent,
         path,
         method,
-        message,
-        metadata: {
-          status,
-        },
+        message: Array.isArray(message) ? message.join(", ") : String(message),
+        metadata: { status },
       });
     }
 
-    throw exception;
+    return res.status(status).json({
+      statusCode: status,
+      message,
+      error: status === 500 ? "Internal Server Error" : undefined,
+    });
   }
 }
