@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
 import Link from "next/link";
 import { BRAND, brandStyles } from "../../lib/brand";
 
@@ -9,31 +8,27 @@ function getDestinationForRole(role) {
   const normalized = String(role || "").toUpperCase();
 
   if (normalized === "ADMIN") return "/admin";
-
-  if (
-    normalized === "STREAMER" ||
-    normalized === "MEDIA" ||
-    normalized === "CONTRIBUTOR"
-  ) {
+  if (normalized === "STREAMER" || normalized === "MEDIA" || normalized === "CONTRIBUTOR") {
     return "/contributor";
   }
 
   return "/";
 }
 
-export default function ContributorLoginPage() {
-  const router = useRouter();
-
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
+  const [debug, setDebug] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    e.stopPropagation();
 
     setError("");
+    setDebug("");
     setLoading(true);
 
     try {
@@ -41,24 +36,33 @@ export default function ContributorLoginPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         credentials: "include",
         body: JSON.stringify({
-          email,
+          email: email.trim(),
           password,
         }),
       });
 
       const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
+      let json = null;
 
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.message || json?.error || "Login failed");
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        throw new Error(`Login returned non-JSON response: ${text.slice(0, 250)}`);
       }
 
-      const role = json?.user?.role;
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || json?.error || text || "Login failed");
+      }
 
-      router.push(getDestinationForRole(role));
+      const destination = getDestinationForRole(json?.user?.role);
+
+      setDebug(`Login ok. Redirecting to ${destination}`);
+
+      window.location.assign(destination);
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
@@ -73,29 +77,24 @@ export default function ContributorLoginPage() {
 
       <div style={styles.card}>
         <Link href="/" style={styles.logoLink}>
-          <img
-            src={LOGO_SRC}
-            alt="MotorXLive Contributor Portal"
-            style={styles.logo}
-          />
+          <img src={LOGO_SRC} alt="MotorXLive" style={styles.logo} />
         </Link>
 
-        <p style={styles.eyebrow}>Contributor Portal</p>
-
-        <h1 style={styles.title}>Creator / Streamer Login</h1>
+        <p style={styles.eyebrow}>Secure Access</p>
+        <h1 style={styles.title}>Admin / Contributor Login</h1>
 
         <p style={styles.subtitle}>
-          Access your livestreams, upload videos, manage event coverage, and
-          contribute content to MotorXLive.
+          Sign in to manage events, livestreams, videos, and MotorXLive content.
         </p>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
+        <form onSubmit={handleSubmit} style={styles.form} noValidate>
           <input
             style={styles.input}
             type="email"
             placeholder="Email"
             value={email}
             autoComplete="email"
+            required
             onChange={(e) => setEmail(e.target.value)}
           />
 
@@ -105,6 +104,7 @@ export default function ContributorLoginPage() {
             placeholder="Password"
             value={password}
             autoComplete="current-password"
+            required
             onChange={(e) => setPassword(e.target.value)}
           />
 
@@ -121,6 +121,7 @@ export default function ContributorLoginPage() {
         </form>
 
         {error ? <p style={styles.error}>{error}</p> : null}
+        {debug ? <p style={styles.debug}>{debug}</p> : null}
 
         <div style={styles.footerLinks}>
           <Link href="/" style={styles.backLink}>
@@ -145,7 +146,6 @@ const styles = {
     fontFamily: "Inter, system-ui, -apple-system, sans-serif",
     padding: 20,
   },
-
   bgGlowOne: {
     position: "absolute",
     width: 420,
@@ -156,7 +156,6 @@ const styles = {
     top: -120,
     right: -120,
   },
-
   bgGlowTwo: {
     position: "absolute",
     width: 360,
@@ -167,7 +166,6 @@ const styles = {
     bottom: -120,
     left: -120,
   },
-
   card: {
     position: "relative",
     zIndex: 2,
@@ -179,76 +177,72 @@ const styles = {
     padding: 26,
     boxShadow: "0 0 36px rgba(0, 229, 255, 0.12)",
   },
-
   logoLink: {
     display: "flex",
     justifyContent: "center",
     textDecoration: "none",
     marginBottom: 18,
   },
-
   logo: {
     width: "100%",
     maxWidth: 280,
     height: "auto",
     display: "block",
   },
-
   eyebrow: {
     fontSize: 13,
     textTransform: "uppercase",
     letterSpacing: 1.8,
-    color: BRAND.colors.green,
+    color: BRAND.colors.blue,
     margin: "0 0 8px",
     fontWeight: 900,
   },
-
   title: {
     margin: "0 0 10px",
     fontSize: 30,
     letterSpacing: -0.8,
   },
-
   subtitle: {
     margin: "0 0 18px",
     color: BRAND.colors.muted,
     lineHeight: 1.55,
     fontSize: 14,
   },
-
   form: {
     display: "grid",
     gap: 12,
   },
-
   input: {
     ...brandStyles.input,
     width: "100%",
   },
-
   button: {
     ...brandStyles.buttonPrimary,
     width: "100%",
+    display: "block",
+    appearance: "none",
   },
-
   buttonDisabled: {
     opacity: 0.65,
     cursor: "not-allowed",
   },
-
   error: {
     marginTop: 12,
     color: "#ff9b9b",
+    whiteSpace: "pre-wrap",
   },
-
+  debug: {
+    marginTop: 12,
+    color: BRAND.colors.green,
+    fontSize: 13,
+  },
   footerLinks: {
     marginTop: 18,
     display: "flex",
     justifyContent: "center",
   },
-
   backLink: {
-    color: BRAND.colors.green,
+    color: BRAND.colors.blue,
     textDecoration: "none",
     fontSize: 14,
     fontWeight: 700,
