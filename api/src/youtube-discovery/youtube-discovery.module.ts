@@ -7,9 +7,10 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { AuthModule } from "../auth/auth.module";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { YouTubeAutoEventsController } from "./youtube-auto-events.controller";
+import { AuditModule } from "../audit/audit.module";
 
 @Module({
-  imports: [PrismaModule, AuthModule, NotificationsModule],
+  imports: [PrismaModule, AuthModule, NotificationsModule, AuditModule],
   controllers: [YouTubeDiscoveryController, YouTubeAutoEventsController],
   providers: [YouTubeDiscoveryService, YouTubeDiscoveryCron, YouTubeClient],
   exports: [YouTubeDiscoveryService],

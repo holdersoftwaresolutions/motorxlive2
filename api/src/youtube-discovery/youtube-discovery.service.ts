@@ -4,6 +4,7 @@ import { YouTubeClient } from "./youtube-client";
 import { NotificationsService } from "../notifications/notifications.service";
 import { classifyYouTubeChannel } from "./youtube-classifier";
 import { scoreYouTubeChannel } from "./youtube-scoring";
+import { AuditService } from "../audit/audit.service";
 
 const DEFAULT_SEARCH_TERMS = [
   "drag racing live",
@@ -31,7 +32,8 @@ export class YouTubeDiscoveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly youtube: YouTubeClient,
-    private readonly notifications: NotificationsService
+    private readonly notifications: NotificationsService,
+    private readonly audit: AuditService,
   ) {}
 
   async discoverChannels(options?: {
@@ -613,6 +615,33 @@ export class YouTubeDiscoveryService {
       });
 
       await this.notifications.createLiveNowIfStreamIsLive(updated.id);
+      await this.audit.audit({
+        action: "YOUTUBE_INGEST_STREAM_CREATED",
+        resource: "STREAM",
+        resourceId: updated.id,
+        actorType: "SYSTEM",
+        severity: "INFO",
+        metadata: {
+            youtubeVideoId: updated.youtubeVideoId,
+            eventId: updated.eventId,
+            lifecycle: updated.lifecycle,
+            moderationStatus: updated.moderationStatus,
+        },
+      });
+      
+      await this.audit.audit({
+        action: "YOUTUBE_INGEST_STREAM_UPDATED",
+        resource: "STREAM",
+        resourceId: updated.id,
+        actorType: "SYSTEM",
+        severity: "INFO",
+        metadata: {
+            youtubeVideoId: updated.youtubeVideoId,
+            eventId: updated.eventId,
+            lifecycle: updated.lifecycle,
+            moderationStatus: updated.moderationStatus,
+        },
+    });
 
       await this.prisma.youTubeDiscoveredVideo.update({
         where: { id: discovered.id },
@@ -685,6 +714,19 @@ export class YouTubeDiscoveryService {
         },
       });
 
+      await this.audit.audit({
+        action: "YOUTUBE_INGEST_VIDEO_UPDATED",
+        resource: "VIDEO",
+        resourceId: updated.id,
+        actorType: "SYSTEM",
+        severity: "INFO",
+        metadata: {
+            youtubeVideoId: updated.youtubeVideoId,
+            eventId: updated.eventId,
+            moderationStatus: updated.moderationStatus,
+        },
+      }); 
+
       await this.prisma.youTubeDiscoveredVideo.update({
         where: { id: discovered.id },
         data: {
@@ -711,6 +753,19 @@ export class YouTubeDiscoveryService {
         status: "READY" as any,
         ...moderation,
       },
+    });
+
+    await this.audit.audit({
+        action: "YOUTUBE_INGEST_VIDEO_UPDATED",
+        resource: "VIDEO",
+        resourceId: created.id,
+        actorType: "SYSTEM",
+        severity: "INFO",
+        metadata: {
+            youtubeVideoId: created.youtubeVideoId,
+            eventId: created.eventId,
+            moderationStatus: created.moderationStatus,
+        },
     });
 
     await this.prisma.youTubeDiscoveredVideo.update({
@@ -928,9 +983,26 @@ export class YouTubeDiscoveryService {
       data.categoryId = categoryId;
     }
 
-    return this.prisma.event.create({
-      data,
+    const created = await this.prisma.event.create({
+        data,
     });
+
+    await this.audit.audit({
+        action: "YOUTUBE_AUTO_EVENT_CREATED",
+        resource: "EVENT",
+        resourceId: created.id,
+        actorType: "SYSTEM",
+        severity: "INFO",
+        metadata: {
+            title: created.title,
+            youtubeVideoId: discovered.youtubeVideoId,
+            youtubeChannelId: discovered.youtubeChannelId,
+            eventSource: created.eventSource,
+            eventReviewStatus: created.eventReviewStatus,
+        },
+    });
+
+    return created;
   }
 
   private async resolveEventIdForIngestion(

@@ -2,6 +2,8 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { AuditExceptionFilter } from "./audit/audit-exception.filter";
+import { AuditService } from "./audit/audit.service";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -38,6 +40,9 @@ async function bootstrap() {
       transform: true,
     })
   );
+
+  const audit = app.get(AuditService);
+  app.useGlobalFilters(new AuditExceptionFilter(audit));
 
   const port = process.env.PORT || 3001;
   await app.listen(port, "0.0.0.0");
