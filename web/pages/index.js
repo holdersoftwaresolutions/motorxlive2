@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import EventCard from "../components/EventCard";
+import { BRAND, brandStyles } from "../lib/brand";
+
+const LOGO_SRC = "/branding/motorxlive-logo-bg.png";
 
 function newSessionToken() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -58,19 +61,11 @@ export default function HomePage() {
       const categoriesText = await categoriesRes.text();
       const upcomingText = await upcomingRes.text();
 
-      if (!categoriesRes.ok) {
-        throw new Error(`Categories request failed: ${categoriesText}`);
-      }
+      if (!categoriesRes.ok) throw new Error(`Categories request failed: ${categoriesText}`);
+      if (!upcomingRes.ok) throw new Error(`Upcoming events request failed: ${upcomingText}`);
 
-      if (!upcomingRes.ok) {
-        throw new Error(`Upcoming events request failed: ${upcomingText}`);
-      }
-
-      const categoriesJson = categoriesText ? JSON.parse(categoriesText) : [];
-      const upcomingJson = upcomingText ? JSON.parse(upcomingText) : { items: [] };
-
-      setCategories(Array.isArray(categoriesJson) ? categoriesJson : []);
-      setUpcomingEventsData(upcomingJson || { items: [] });
+      setCategories(categoriesText ? JSON.parse(categoriesText) : []);
+      setUpcomingEventsData(upcomingText ? JSON.parse(upcomingText) : { items: [] });
     } catch (err) {
       setError(err.message || "Failed to load homepage content.");
     } finally {
@@ -89,20 +84,14 @@ export default function HomePage() {
       params.set("lat", String(lat));
       params.set("lng", String(lng));
       params.set("radiusMiles", String(radiusMiles));
-
-      if (q?.trim()) {
-        params.set("q", q.trim());
-      }
+      if (q?.trim()) params.set("q", q.trim());
 
       const res = await fetch(`/api/public/events?${params.toString()}`);
       const text = await res.text();
 
-      if (!res.ok) {
-        throw new Error(text || "Failed to load nearby events");
-      }
+      if (!res.ok) throw new Error(text || "Failed to load nearby events");
 
-      const json = text ? JSON.parse(text) : { items: [] };
-      setNearbyEventsData(json || { items: [] });
+      setNearbyEventsData(text ? JSON.parse(text) : { items: [] });
     } catch (err) {
       setNearbyError(err.message || "Failed to load nearby events.");
       setNearbyEventsData({ items: [] });
@@ -128,10 +117,9 @@ export default function HomePage() {
 
   async function tryAutoLoadNearby() {
     if (typeof window === "undefined") return;
+
     if (!navigator.geolocation) {
-      setNearbyError(
-        "Geolocation is not supported in this browser. Search by city, state, or ZIP."
-      );
+      setNearbyError("Geolocation is not supported in this browser. Search by city, state, or ZIP.");
       setLocationStatus("Location search unavailable in this browser.");
       return;
     }
@@ -178,24 +166,24 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-  const interval = setInterval(async () => {
-    try {
-      const res = await fetch("/api/public/events?page=1&pageSize=12");
-      const data = await res.json();
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/public/events?page=1&pageSize=12");
+        const data = await res.json();
 
-      if (data?.items) {
-        setNearbyEventsData((prev) => ({
-          ...prev,
-          items: data.items,
-        }));
+        if (data?.items) {
+          setNearbyEventsData((prev) => ({
+            ...prev,
+            items: data.items,
+          }));
+        }
+      } catch (err) {
+        console.error("Auto-refresh failed", err);
       }
-    } catch (err) {
-      console.error("Auto-refresh failed", err);
-    }
-  }, 30000); // every 30 seconds
+    }, 30000);
 
-  return () => clearInterval(interval);
-}, []);
+    return () => clearInterval(interval);
+  }, []);
 
   async function fetchSuggestions(value) {
     if (!value.trim()) {
@@ -214,9 +202,7 @@ export default function HomePage() {
       const res = await fetch(`/api/public/location/suggest?${params.toString()}`);
       const text = await res.text();
 
-      if (!res.ok) {
-        throw new Error(text || "Failed to load location suggestions");
-      }
+      if (!res.ok) throw new Error(text || "Failed to load location suggestions");
 
       const json = text ? JSON.parse(text) : { suggestions: [] };
       const list = Array.isArray(json.suggestions) ? json.suggestions : [];
@@ -236,9 +222,7 @@ export default function HomePage() {
     setResolvedLocationLabel("");
     setSearch((s) => ({ ...s, locationText: value }));
 
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
       fetchSuggestions(value);
@@ -257,20 +241,14 @@ export default function HomePage() {
       const res = await fetch(`/api/public/location/retrieve?${params.toString()}`);
       const text = await res.text();
 
-      if (!res.ok) {
-        throw new Error(text || "Failed to retrieve location");
-      }
+      if (!res.ok) throw new Error(text || "Failed to retrieve location");
 
       const json = text ? JSON.parse(text) : null;
-
-      if (!json || json.ok === false) {
-        throw new Error(json?.error || "Failed to retrieve location");
-      }
+      if (!json || json.ok === false) throw new Error(json?.error || "Failed to retrieve location");
 
       setSearch((s) => ({
         ...s,
-        locationText:
-          suggestion.fullAddress || suggestion.placeFormatted || suggestion.name,
+        locationText: suggestion.fullAddress || suggestion.placeFormatted || suggestion.name,
         lat: String(json.lat),
         lng: String(json.lng),
       }));
@@ -345,20 +323,14 @@ export default function HomePage() {
         const params = new URLSearchParams();
         params.set("page", "1");
         params.set("pageSize", "24");
-
-        if (search.q.trim()) {
-          params.set("q", search.q.trim());
-        }
+        if (search.q.trim()) params.set("q", search.q.trim());
 
         const res = await fetch(`/api/public/events?${params.toString()}`);
         const text = await res.text();
 
-        if (!res.ok) {
-          throw new Error(text || "Failed to search events");
-        }
+        if (!res.ok) throw new Error(text || "Failed to search events");
 
-        const json = text ? JSON.parse(text) : { items: [] };
-        setUpcomingEventsData(json || { items: [] });
+        setUpcomingEventsData(text ? JSON.parse(text) : { items: [] });
       }
     } catch (err) {
       setError(err.message || "Failed to search events.");
@@ -398,15 +370,13 @@ export default function HomePage() {
     const unique = new Map();
 
     allEvents.forEach((event) => {
-      if (hasLiveStream(event)) {
-        unique.set(event.id, event);
-      }
+      if (hasLiveStream(event)) unique.set(event.id, event);
     });
 
     return Array.from(unique.values());
   }
 
-    function handleReset() {
+  function handleReset() {
     setSearch({
       q: "",
       locationText: "",
@@ -431,23 +401,91 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>MotorXLive</title>
+        <title>MotorXLive | Live Motorsports</title>
         <meta
           name="description"
-          content="Watch motorsports events live and browse completed event videos."
+          content="Watch live motorsports events, grassroots racing streams, and event replays."
         />
       </Head>
 
       <div style={styles.page}>
-        <div style={styles.container}>
-          <section style={styles.hero}>
-            <p style={styles.eyebrow}>MotorXLive</p>
-            <h1 style={styles.heroTitle}>Find events near you and watch them live.</h1>
-            <p style={styles.heroSubtitle}>
-              Search by keyword, use your current location, or enter a city, state,
-              or ZIP code to find events within a radius.
-            </p>
-          </section>
+        <header style={styles.header}>
+          <div style={styles.headerInner}>
+            <Link href="/" style={styles.logoLink}>
+              <img src={LOGO_SRC} alt="MotorXLive" style={styles.logoImage} />
+            </Link>
+
+            <nav style={styles.nav}>
+              <Link href="/" style={styles.navLink}>
+                Events
+              </Link>
+              <Link href="/contributor/login" style={styles.navLink}>
+                Streamers
+              </Link>
+              <Link href="/admin/login" style={styles.navButton}>
+                Admin
+              </Link>
+            </nav>
+          </div>
+        </header>
+
+        <div style={styles.heroBackdrop}>
+          <div style={styles.container}>
+            <section style={styles.hero}>
+              <div style={styles.heroContent}>
+                <p style={styles.eyebrow}>LIVE MOTORSPORTS NETWORK</p>
+                <h1 style={styles.heroTitle}>Watch grassroots motorsports live.</h1>
+                <p style={styles.heroSubtitle}>
+                  Find nearby races, live feeds, and event replays from tracks,
+                  streamers, and motorsports creators.
+                </p>
+
+                <div style={styles.heroActions}>
+                  <a href="#search-events" style={styles.button}>
+                    Find Events
+                  </a>
+                  <Link href="/contributor/login" style={styles.secondaryButton}>
+                    Add Your Stream
+                  </Link>
+                </div>
+              </div>
+
+              <div style={styles.heroLogoCard}>
+                <img src={LOGO_SRC} alt="MotorXLive" style={styles.heroLogo} />
+
+                <div style={styles.heroHeadlineWrap}>
+                  <h1 style={styles.heroHeadline}>
+                    Watch Live Motorsports — Anytime, Anywhere
+                  </h1>
+
+                  <p style={styles.heroHeadlineSubtext}>
+                    Drag racing, off-road, grassroots events — all in one place.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <main style={styles.container}>
+          {liveEvents.length > 0 ? (
+            <section style={styles.liveNowSection}>
+              <div style={styles.sectionHeader}>
+                <h2 style={styles.sectionTitle}>LIVE NOW</h2>
+              </div>
+
+              <div style={styles.liveNowScroller}>
+                {liveEvents.map((event) => (
+                  <div key={event.id} style={styles.liveNowCard}>
+                    <div style={styles.liveBadgeLarge}>LIVE</div>
+                    <Link href={`/events/${event.slug}/live`} style={{ textDecoration: "none" }}>
+                      <EventCard event={event} />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section style={styles.section}>
             <div style={styles.sectionHeader}>
@@ -461,11 +499,7 @@ export default function HomePage() {
             ) : (
               <div style={styles.categoryGrid}>
                 {categories.map((category) => (
-                  <Link
-                    key={category.id}
-                    href={`/categories/${category.slug}`}
-                    style={styles.categoryCard}
-                  >
+                  <Link key={category.id} href={`/categories/${category.slug}`} style={styles.categoryCard}>
                     <div style={styles.categoryName}>{category.name}</div>
                     <div style={styles.categoryMeta}>View events</div>
                   </Link>
@@ -503,7 +537,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section style={styles.searchPanel}>
+          <section id="search-events" style={styles.searchPanel}>
             <h2 style={styles.sectionTitle}>Search Events by Location</h2>
 
             <form onSubmit={handleSearch} style={styles.searchForm}>
@@ -525,9 +559,7 @@ export default function HomePage() {
                   }}
                 />
 
-                {suggesting ? (
-                  <div style={styles.suggestLoading}>Loading suggestions...</div>
-                ) : null}
+                {suggesting ? <div style={styles.suggestLoading}>Loading suggestions...</div> : null}
 
                 {showSuggestions && suggestions.length > 0 ? (
                   <div style={styles.suggestions}>
@@ -553,9 +585,7 @@ export default function HomePage() {
                 type="number"
                 placeholder="Radius (miles)"
                 value={search.radiusMiles}
-                onChange={(e) =>
-                  setSearch((s) => ({ ...s, radiusMiles: e.target.value }))
-                }
+                onChange={(e) => setSearch((s) => ({ ...s, radiusMiles: e.target.value }))}
               />
 
               <div style={styles.searchActions}>
@@ -590,9 +620,7 @@ export default function HomePage() {
 
             <p style={styles.locationStatus}>{locationStatus}</p>
 
-            {resolvedLocationLabel ? (
-              <p style={styles.locationHint}>{resolvedLocationLabel}</p>
-            ) : null}
+            {resolvedLocationLabel ? <p style={styles.locationHint}>{resolvedLocationLabel}</p> : null}
 
             {search.lat && search.lng ? (
               <p style={styles.coordsHint}>
@@ -600,25 +628,6 @@ export default function HomePage() {
               </p>
             ) : null}
           </section>
-
-          {liveEvents.length > 0 ? (
-            <section style={styles.liveNowSection}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>LIVE NOW</h2>
-              </div>
-
-              <div style={styles.liveNowScroller}>
-                {liveEvents.map((event) => (
-                  <div key={event.id} style={styles.liveNowCard}>
-                    <div style={styles.liveBadgeLarge}>LIVE</div>
-                      <Link href={`/events/${event.slug}/live`} style={{ textDecoration: "none" }}>
-                        <EventCard event={event} />
-                      </Link>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
 
           <section style={styles.section}>
             <div style={styles.sectionHeader}>
@@ -639,23 +648,16 @@ export default function HomePage() {
                       {hasLiveStream(event) && (
                         <>
                           <div style={styles.liveBadge}>LIVE</div>
-
-                          <Link
-                            href={`/events/${event.slug}/live`}
-                            style={styles.watchLiveOverlay}
-                          >
+                          <Link href={`/events/${event.slug}/live`} style={styles.watchLiveOverlay}>
                             ▶ WATCH LIVE
                           </Link>
                         </>
                       )}
-
-                    <EventCard event={event} />
-                  </div>
+                      <EventCard event={event} />
+                    </div>
 
                     {event.distanceMiles != null ? (
-                      <p style={styles.distanceText}>
-                        {event.distanceMiles.toFixed(1)} miles away
-                      </p>
+                      <p style={styles.distanceText}>{event.distanceMiles.toFixed(1)} miles away</p>
                     ) : null}
                   </div>
                 ))}
@@ -677,27 +679,22 @@ export default function HomePage() {
             ) : (
               <div style={styles.eventGrid}>
                 {sortEventsLiveFirst(upcomingEventsData.items).map((event) => (
-                  <div style={styles.eventCardWrap}>
+                  <div key={event.id} style={styles.eventCardWrap}>
                     {hasLiveStream(event) && (
                       <>
                         <div style={styles.liveBadge}>LIVE</div>
-
-                        <Link
-                          href={`/events/${event.slug}/live`}
-                          style={styles.watchLiveOverlay}
-                        >
+                        <Link href={`/events/${event.slug}/live`} style={styles.watchLiveOverlay}>
                           ▶ WATCH LIVE
                         </Link>
                       </>
                     )}
-
                     <EventCard event={event} />
                   </div>
                 ))}
               </div>
             )}
           </section>
-        </div>
+        </main>
       </div>
     </>
   );
@@ -706,9 +703,62 @@ export default function HomePage() {
 const styles = {
   page: {
     minHeight: "100vh",
-    background: "#0b0d10",
-    color: "#f5f7fa",
-    fontFamily: "system-ui",
+    background: BRAND?.colors?.bg || "#0B0F14",
+    color: BRAND?.colors?.text || "#f5f7fa",
+    fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+  },
+  header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    background: "rgba(5, 8, 13, 0.92)",
+    backdropFilter: "blur(14px)",
+    borderBottom: "1px solid rgba(0,229,255,0.18)",
+  },
+  headerInner: {
+    maxWidth: 1200,
+    margin: "0 auto",
+    padding: "10px 20px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+  },
+  logoLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    textDecoration: "none",
+  },
+  logoImage: {
+    height: 58,
+    width: "auto",
+    display: "block",
+  },
+  nav: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+  },
+  navLink: {
+    color: "#c9d1d9",
+    textDecoration: "none",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  navButton: {
+    color: "#020617",
+    textDecoration: "none",
+    fontSize: 14,
+    fontWeight: 900,
+    background: "linear-gradient(135deg, #00E5FF, #00FF9D)",
+    padding: "9px 12px",
+    borderRadius: 999,
+  },
+  heroBackdrop: {
+    background:
+      "radial-gradient(circle at 75% 20%, rgba(0,229,255,0.18), transparent 34%), radial-gradient(circle at 80% 58%, rgba(0,255,157,0.12), transparent 30%), linear-gradient(180deg, #05080d 0%, #0B0F14 100%)",
+    borderBottom: "1px solid rgba(0,229,255,0.12)",
   },
   container: {
     maxWidth: 1200,
@@ -716,26 +766,54 @@ const styles = {
     padding: "32px 20px 60px",
   },
   hero: {
-    padding: "16px 0 24px",
+    minHeight: 420,
+    display: "grid",
+    gridTemplateColumns: "1.05fr 0.95fr",
+    alignItems: "center",
+    gap: 28,
+    padding: "28px 0 42px",
+  },
+  heroContent: {
+    minWidth: 0,
+  },
+  heroLogoCard: {
+    background: "rgba(17,22,28,0.52)",
+    border: "1px solid rgba(0,229,255,0.18)",
+    borderRadius: 22,
+    padding: 18,
+    boxShadow: "0 0 38px rgba(0,229,255,0.12)",
+  },
+  heroLogo: {
+    width: "100%",
+    display: "block",
+    borderRadius: 16,
   },
   eyebrow: {
-    fontSize: 14,
+    fontSize: 13,
     textTransform: "uppercase",
-    letterSpacing: 1.2,
-    color: "#8fb3ff",
-    marginBottom: 10,
+    letterSpacing: 2,
+    color: "#00E5FF",
+    marginBottom: 12,
+    fontWeight: 900,
   },
   heroTitle: {
-    fontSize: 42,
-    lineHeight: 1.1,
-    margin: "0 0 12px",
+    fontSize: 56,
+    lineHeight: 0.96,
+    margin: "0 0 16px",
+    letterSpacing: -1.5,
   },
   heroSubtitle: {
-    maxWidth: 760,
-    fontSize: 17,
-    lineHeight: 1.6,
+    maxWidth: 720,
+    fontSize: 18,
+    lineHeight: 1.65,
     color: "#c9d1d9",
     margin: 0,
+  },
+  heroActions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 24,
   },
   section: {
     marginTop: 36,
@@ -755,7 +833,7 @@ const styles = {
   categoryCard: {
     textDecoration: "none",
     color: "#f5f7fa",
-    border: "1px solid #1f2937",
+    border: "1px solid rgba(0,229,255,0.15)",
     background: "#11161c",
     borderRadius: 14,
     padding: 18,
@@ -765,7 +843,7 @@ const styles = {
   },
   categoryName: {
     fontSize: 18,
-    fontWeight: 700,
+    fontWeight: 800,
   },
   categoryMeta: {
     fontSize: 14,
@@ -779,7 +857,7 @@ const styles = {
   contributorCard: {
     textDecoration: "none",
     color: "#f5f7fa",
-    border: "1px solid #1f2937",
+    border: "1px solid rgba(0,229,255,0.15)",
     background: "#11161c",
     borderRadius: 14,
     padding: 18,
@@ -788,7 +866,7 @@ const styles = {
   },
   contributorTitle: {
     fontSize: 18,
-    fontWeight: 700,
+    fontWeight: 800,
   },
   contributorText: {
     fontSize: 14,
@@ -797,16 +875,18 @@ const styles = {
   },
   searchPanel: {
     background: "#11161c",
-    border: "1px solid #1f2937",
+    border: "1px solid rgba(0,229,255,0.18)",
     borderRadius: 16,
     padding: 20,
     marginTop: 36,
+    boxShadow: "0 0 22px rgba(0,229,255,0.08)",
   },
   searchForm: {
     display: "grid",
     gridTemplateColumns: "2fr 1.6fr 180px auto",
     gap: 12,
     alignItems: "start",
+    marginTop: 16,
   },
   input: {
     width: "100%",
@@ -843,7 +923,7 @@ const styles = {
   },
   suggestionTitle: {
     fontSize: 14,
-    fontWeight: 600,
+    fontWeight: 700,
     marginBottom: 4,
   },
   suggestionMeta: {
@@ -861,20 +941,18 @@ const styles = {
     flexWrap: "wrap",
   },
   button: {
-    background: "#2563eb",
-    color: "#fff",
-    border: 0,
-    borderRadius: 10,
-    padding: "12px 14px",
-    cursor: "pointer",
+    ...(brandStyles?.buttonPrimary || {}),
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   secondaryButton: {
-    background: "#1b2a40",
-    color: "#fff",
-    border: "1px solid #31598b",
-    borderRadius: 10,
-    padding: "12px 14px",
-    cursor: "pointer",
+    ...(brandStyles?.buttonSecondary || {}),
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -882,10 +960,11 @@ const styles = {
   },
   liveNowSection: {
     marginTop: 36,
-    background: "#180b0b",
-    border: "1px solid #7f1d1d",
+    background: "linear-gradient(135deg, rgba(255,0,51,0.18), rgba(0,229,255,0.08))",
+    border: "1px solid rgba(255,0,51,0.45)",
     borderRadius: 16,
     padding: 18,
+    boxShadow: "0 0 24px rgba(255,0,51,0.12)",
   },
   liveNowScroller: {
     display: "flex",
@@ -903,14 +982,11 @@ const styles = {
     position: "absolute",
     top: 10,
     left: 10,
-    background: "#ff0000",
-    color: "#fff",
-    fontWeight: "bold",
+    ...brandStyles.liveBadge,
     padding: "6px 10px",
     borderRadius: 999,
     fontSize: 12,
     zIndex: 5,
-    letterSpacing: 0.8,
   },
   eventGrid: {
     display: "grid",
@@ -924,9 +1000,7 @@ const styles = {
     position: "absolute",
     top: 10,
     left: 10,
-    background: "#ff0000",
-    color: "#fff",
-    fontWeight: "bold",
+    ...brandStyles.liveBadge,
     padding: "4px 8px",
     borderRadius: 6,
     fontSize: 12,
@@ -945,7 +1019,7 @@ const styles = {
   },
   locationHint: {
     marginTop: 12,
-    color: "#8fd19e",
+    color: "#00FF9D",
     fontSize: 14,
   },
   coordsHint: {
@@ -959,18 +1033,38 @@ const styles = {
     fontSize: 14,
   },
   watchLiveOverlay: {
-  position: "absolute",
-  bottom: 10,
-  left: 10,
-  right: 10,
-  background: "rgba(0,0,0,0.85)",
-  color: "#fff",
-  fontWeight: "bold",
-  textAlign: "center",
-  padding: "10px",
-  borderRadius: 8,
-  textDecoration: "none",
-  zIndex: 5,
-  border: "1px solid red",
-},
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    right: 10,
+    background: "rgba(0,0,0,0.86)",
+    color: "#fff",
+    fontWeight: "900",
+    textAlign: "center",
+    padding: "10px",
+    borderRadius: 8,
+    textDecoration: "none",
+    zIndex: 5,
+    border: "1px solid #FF0033",
+    boxShadow: "0 0 16px rgba(255,0,51,0.35)",
+  },
+    heroHeadlineWrap: {
+    marginTop: 18,
+    textAlign: "center",
+  },
+
+  heroHeadline: {
+    fontSize: 28,
+    lineHeight: 1.15,
+    margin: "0 0 10px",
+    fontWeight: 900,
+    letterSpacing: -0.8,
+  },
+
+  heroHeadlineSubtext: {
+    color: "#9AA4AF",
+    margin: 0,
+    fontSize: 15,
+    lineHeight: 1.6,
+  },
 };
