@@ -19,7 +19,7 @@ export default function CategoryPage({ slug }) {
 
         const [categoriesRes, eventsRes] = await Promise.all([
           fetch("/api/public/categories"),
-          fetch(`/api/public/events?category=${slug}&page=1&pageSize=24`),
+          fetch(`/api/public/events?categorySlug=${encodeURIComponent(slug)}&page=1&pageSize=24`),
         ]);
 
         const [categoriesJson, eventsJson] = await Promise.all([
