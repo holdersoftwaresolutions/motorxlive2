@@ -120,16 +120,17 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <Link href="/contributor/request-access" style={styles.backLink}>
-          Need access? Request contributor access
-        </Link>    
         {error ? <p style={styles.error}>{error}</p> : null}
         {debug ? <p style={styles.debug}>{debug}</p> : null}
 
         <div style={styles.footerLinks}>
-          <Link href="/" style={styles.backLink}>
+          <a href="/contributor/request-access" style={styles.requestAccessLink}>
+            Need access? Request contributor access
+          </a>
+
+          <a href="/" style={styles.backLink}>
             ← Back to MotorXLive
-          </Link>
+          </a>
         </div>
       </div>
     </div>
@@ -241,8 +242,9 @@ const styles = {
   },
   footerLinks: {
     marginTop: 18,
-    display: "flex",
-    justifyContent: "center",
+    display: "grid",
+    gap: 10,
+    justifyItems: "center",
   },
   backLink: {
     color: BRAND.colors.blue,
@@ -250,4 +252,19 @@ const styles = {
     fontSize: 14,
     fontWeight: 700,
   },
+  requestAccessLink: {
+    display: "inline-flex",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    background: "rgba(0, 229, 255, 0.08)",
+    color: BRAND.colors.green,
+    border: "1px solid rgba(0, 255, 157, 0.28)",
+    borderRadius: BRAND.radius.md,
+    padding: "11px 14px",
+    textDecoration: "none",
+    fontSize: 14,
+    fontWeight: 900,
+  },
+
 };
