@@ -28,6 +28,8 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { AuditModule } from "./audit/audit.module";
 
+import { ContributorAccessModule } from "./contributor-access/contributor-access.module";
+
 @Module({
   imports: [
     ThrottlerModule.forRoot([
@@ -47,6 +49,7 @@ import { AuditModule } from "./audit/audit.module";
     NotificationsModule,
     ScheduleModule.forRoot(),
     AuditModule,
+    ContributorAccessModule,
   ],
   controllers: [
     HealthController,

@@ -269,6 +269,29 @@ model JobRunLog {
   @@index([startedAt])
 }
 
+model ContributorAccessRequest {
+  id                 String                          @id @default(cuid())
+  name               String
+  email              String
+  phone              String?
+  organizationName   String?
+  roleRequested      ContributorAccessRoleRequested  @default(STREAMER)
+  websiteOrSocialUrl String?
+  youtubeChannelUrl  String?
+  reason             String?
+  status             ContributorAccessRequestStatus  @default(PENDING)
+  reviewedByUserId   String?
+  reviewedAt         DateTime?
+  adminNotes         String?
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@index([roleRequested])
+  @@index([createdAt])
+}
+
 enum UserRole {
   ADMIN
   STREAMER
@@ -376,4 +399,18 @@ enum AuditActorType {
   ADMIN
   CONTRIBUTOR
   ANONYMOUS
+}
+
+enum ContributorAccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ContributorAccessRoleRequested {
+  STREAMER
+  MEDIA
+  TRACK
+  PROMOTER
+  OTHER
 }
