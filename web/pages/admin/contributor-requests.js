@@ -27,7 +27,9 @@ export default function AdminContributorRequestsPage() {
   });
 
   async function loadRequests(nextStatus = status) {
-    setMessage("");
+    if (!options.preserveMessage) {
+        setMessage("");
+    }
 
     const params = new URLSearchParams();
     if (nextStatus) params.set("status", nextStatus);
@@ -109,7 +111,7 @@ export default function AdminContributorRequestsPage() {
             setMessage("Request rejected.");
     }
 
-    await loadRequests(status);
+    await loadRequests(status, { preserveMessage: true });
     } catch (err) {
         setMessage(err.message || "Review failed.");
         } finally {
