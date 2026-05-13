@@ -10,16 +10,25 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
+  const publicAdminRoutes = ["/admin/login"];
+
+  const publicContributorRoutes = [
+    "/contributor/login",
+    "/contributor/request-access",
+  ];
+
   const isAdminRoute = pathname.startsWith("/admin");
   const isContributorRoute = pathname.startsWith("/contributor");
-  const isLoginRoute =
-    pathname === "/admin/login" || pathname === "/contributor/login";
 
   if (!isAdminRoute && !isContributorRoute) {
     return NextResponse.next();
   }
 
-  if (isLoginRoute) {
+  if (publicAdminRoutes.includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (publicContributorRoutes.includes(pathname)) {
     return NextResponse.next();
   }
 
