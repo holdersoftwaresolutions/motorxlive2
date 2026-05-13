@@ -150,14 +150,14 @@ export class ContributorAccessService {
     const passwordHash = await hash(temporaryPassword, 10);
 
     createdUser = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        role: mapRequestedRoleToUserRole(request.roleRequested) as any,
-        isActive: true,
-      },
+        data: {
+            email,
+            name: request.name?.trim() || null,
+            passwordHash,
+            role: mapRequestedRoleToUserRole(request.roleRequested) as any,
+            isActive: true,
+        },
     });
-  }
 
   const updated = await this.prisma.contributorAccessRequest.update({
     where: { id },
