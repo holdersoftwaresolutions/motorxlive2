@@ -75,42 +75,47 @@ export default function AdminContributorRequestsPage() {
     setMessage("");
 
     try {
-      const res = await adminFetch(`/api/admin/contributor-access-requests/${id}/${action}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          adminNotes: notes[id] || "",
-        }),
-      });
+        const res = await adminFetch(
+        `/api/admin/contributor-access-requests/${id}/${action}`,
+        {
+            method: "PATCH",
+            headers: {
+            "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+            adminNotes: notes[id] || "",
+            }),
+        }
+        );
 
-      const text = await res.text();
-      const json = text ? JSON.parse(text) : null;
+        const text = await res.text();
+        const json = text ? JSON.parse(text) : null;
 
-      if (!res.ok || json?.ok === false) {
+        if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || json?.message || text || "Review failed.");
-      }
+        }
 
-      if (action === "approve" && json?.temporaryPassword) {
+        if (action === "approve" && json?.temporaryPassword) {
         setMessage(
             `Request approved. User created for ${json.user?.email}. Temporary password: ${json.temporaryPassword}`
         );
-        } else {
+        } else if (action === "approve" && json?.userAlreadyExists) {
         setMessage(
-            action === "approve"
-            ? json?.message || "Request approved."
-            : "Request rejected."
+            `Request approved. User already exists for ${json.user?.email}. No new password was generated.`
         );
-      }
-
-      await loadRequests(status);
-    } catch (err) {
-      setMessage(err.message || "Review failed.");
-    } finally {
-      setBusyId("");
+        } else if (action === "approve") {
+            setMessage(json?.message || "Request approved.");
+        } else {
+            setMessage("Request rejected.");
     }
-  }
+
+    await loadRequests(status);
+    } catch (err) {
+        setMessage(err.message || "Review failed.");
+        } finally {
+        setBusyId("");
+        }
+    }
 
   return (
     <AdminLayout title="Contributor Requests">
