@@ -120,6 +120,9 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <Link href="/contributor/request-access" style={styles.backLink}>
+          Need access? Request contributor access
+        </Link>    
         {error ? <p style={styles.error}>{error}</p> : null}
         {debug ? <p style={styles.debug}>{debug}</p> : null}
 

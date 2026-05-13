@@ -531,6 +531,13 @@ export default function HomePage() {
                   Publish completed videos and on-demand event content.
                 </div>
               </Link>
+
+              <Link href="/contributor/request-access" style={styles.contributorCard}>
+                <div style={styles.contributorTitle}>Request Contributor Access</div>
+                <div style={styles.contributorText}>
+                  Streamers, media creators, tracks, and promoters can request verified access.
+                </div>
+              </Link>
             </div>
           </section>
 

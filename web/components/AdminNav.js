@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { BRAND } from "../lib/brand";
 
 const links = [
   { href: "/admin", label: "Dashboard" },
@@ -8,6 +9,7 @@ const links = [
   { href: "/admin/streams", label: "Streams" },
   { href: "/admin/videos", label: "Videos" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/contributor-requests", label: "Contributor Requests" },
   { href: "/admin/youtube-discovery", label: "YouTube Discovery" },
   { href: "/admin/youtube-channels", label: "Approved YouTube Channels" },
   { href: "/admin/youtube-videos", label: "YouTube Videos" },
@@ -22,6 +24,7 @@ export default function AdminNav() {
     <nav style={styles.nav}>
       {links.map((link) => {
         const active = router.pathname === link.href;
+
         return (
           <Link
             key={link.href}
@@ -54,10 +57,12 @@ const styles = {
     padding: "10px 14px",
     borderRadius: 10,
     fontSize: 14,
+    fontWeight: 700,
   },
   linkActive: {
-    background: "#1b2a40",
-    border: "1px solid #4f8cff",
+    background: "linear-gradient(135deg, rgba(0,229,255,0.18), rgba(0,255,157,0.10))",
+    border: `1px solid ${BRAND.colors.blue}`,
     color: "#fff",
+    boxShadow: "0 0 14px rgba(0,229,255,0.16)",
   },
 };

@@ -42,6 +42,14 @@ export class ContributorAccessController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+ @Roles("ADMIN")
+ @Throttle({ default: { limit: 60, ttl: 60000 } })
+ @Get("admin/contributor-access-requests/counts")
+ async getCounts() {
+   return this.service.getRequestCounts();
+ }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles("ADMIN")
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @Get("admin/contributor-access-requests")
