@@ -46,6 +46,34 @@ export class SubmitStreamDto {
   @IsOptional()
   @IsString()
   youtubeVideoId?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  embedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelId?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelName?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeThumbnailUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  youtubeEmbeddable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  youtubeLiveStatus?: string;
 }
 
 export class UpdateSubmittedStreamDto {
@@ -78,4 +106,32 @@ export class UpdateSubmittedStreamDto {
   @IsOptional()
   @IsString()
   youtubeVideoId?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  embedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelId?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelName?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeThumbnailUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  youtubeEmbeddable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  youtubeLiveStatus?: string;
 }

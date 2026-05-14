@@ -62,6 +62,34 @@ export class CreateStreamDto {
   youtubeVideoId?: string;
 
   @IsOptional()
+  @IsString()
+  sourceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  embedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelId?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelName?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeThumbnailUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  youtubeEmbeddable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  youtubeLiveStatus?: string;
+
+  @IsOptional()
   @IsEnum(StreamLifecycleStatusDto)
   lifecycle?: StreamLifecycleStatusDto;
 }
@@ -104,6 +132,34 @@ export class UpdateStreamDto {
   @IsOptional()
   @IsString()
   youtubeVideoId?: string;
+
+  @IsOptional()
+  @IsString()
+  sourceUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  embedUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelId?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeChannelName?: string;
+
+  @IsOptional()
+  @IsString()
+  youtubeThumbnailUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  youtubeEmbeddable?: boolean;
+
+  @IsOptional()
+  @IsString()
+  youtubeLiveStatus?: string;
 
   @IsOptional()
   @IsEnum(StreamLifecycleStatusDto)
