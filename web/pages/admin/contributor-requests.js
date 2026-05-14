@@ -113,7 +113,56 @@ export default function AdminContributorRequestsPage() {
         } finally {
             setBusyId("");
         }
-    }    
+    }   
+    
+    async function handleResetPasswordForRequest(request) {
+        try {
+            const usersRes = await adminFetch("/api/admin/users");
+            const usersJson = await usersRes.json();
+
+            const matchedUser = Array.isArray(usersJson)
+            ? usersJson.find(
+                (u) =>
+                String(u.email || "").toLowerCase() ===
+                String(request.email || "").toLowerCase()
+            )
+            : null;
+
+            if (!matchedUser) {
+            alert("No user found for this approved contributor.");
+            return;
+            }
+
+            const confirmed = window.confirm(
+            `Generate a new temporary password for ${matchedUser.email}?`
+            );
+
+            if (!confirmed) return;
+
+            const resetRes = await adminFetch(
+            `/api/admin/users/${matchedUser.id}/reset-password`,
+            {
+                method: "POST",
+            }
+            );
+
+            const resetJson = await resetRes.json();
+
+            if (!resetRes.ok || !resetJson?.temporaryPassword) {
+                throw new Error(resetJson?.message || "Failed to reset password.");
+            }
+
+            alert(
+                `Temporary password for ${matchedUser.email}:\n\n${resetJson.temporaryPassword}`
+            );
+
+            setMessage(
+                `Temporary password for ${matchedUser.email}: ${resetJson.temporaryPassword}`
+            );
+        } catch (err) {
+            alert(err.message || "Password reset failed.");
+        }
+    }
 
   return (
     <AdminLayout title="Contributor Requests">
@@ -241,54 +290,25 @@ export default function AdminContributorRequestsPage() {
                         Reject
                     </button>
 
-                    <button
-                        type="button"
-                        style={styles.resetPasswordButton}
-                        onClick={async () => {
-                        try {
-                            const usersRes = await adminFetch("/api/admin/users");
-                            const usersJson = await usersRes.json();
-
-                            const matchedUser = Array.isArray(usersJson)
-                                ? usersJson.find((u) => u.email === request.email)
-                                : null;
-
-                            if (!matchedUser) {
-                            alert("No user found for this contributor.");
-                            return;
-                            }
-
-                            const resetRes = await adminFetch(
-                            `/api/admin/users/${matchedUser.id}/reset-password`,
-                            {
-                                method: "POST",
-                            }
-                            );
-
-                            const resetJson = await resetRes.json();
-
-                            if (!resetRes.ok || !resetJson?.temporaryPassword) {
-                            throw new Error(
-                                resetJson?.message || "Failed to reset password."
-                            );
-                            }
-
-                            alert(
-                                `Temporary password for ${matchedUser.email}:\n\n${resetJson.temporaryPassword}`
-                            );
-                            } catch (err) {
-                                alert(err.message || "Password reset failed.");
-                            }
-                            }}
-                            >
-                            Reset Password
-                        </button>
+                    
                     </div>
                 </div>
               ) : request.adminNotes ? (
                 <div style={styles.reasonBox}>
                   <div style={styles.label}>Admin Notes</div>
                   <p style={styles.reason}>{request.adminNotes}</p>
+                </div>
+              ) : null}
+
+              {request.status === "APPROVED" ? (
+                <div style={styles.postApprovalActions}>
+                    <button
+                        type="button"
+                        style={styles.resetPasswordButton}
+                        onClick={() => handleResetPasswordForRequest(request)}
+                        >
+                            Reset Temp Password
+                    </button>
                 </div>
               ) : null}
             </div>
@@ -457,7 +477,21 @@ countNumber: {
   fontWeight: 900,
   color: BRAND.colors.green,
 },
-
+postApprovalActions: {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+  marginTop: 16,
+},
+resetPasswordButton: {
+  background: "#1b2a40",
+  color: "#fff",
+  border: "1px solid #31598b",
+  borderRadius: BRAND.radius.md,
+  padding: "10px 14px",
+  cursor: "pointer",
+  fontWeight: 800,
+},
 countLabel: {
   display: "block",
   marginTop: 4,
