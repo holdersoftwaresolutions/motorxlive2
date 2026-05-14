@@ -150,9 +150,13 @@ function getChannelLabel(item) {
 }
 
 export default function EventWatchPage({ event, liveData, videoData }) {
+  const displayEvent = liveData?.event || event;
+
   const streams = liveData?.streams || [];
   const videos =
-    (videoData?.videos && videoData.videos.length ? videoData.videos : event?.videos) || [];
+    (videoData?.videos && videoData.videos.length
+      ? videoData.videos
+      : displayEvent?.videos) || [];
 
   const playableStreams = streams.filter(
     (stream) => stream.youtubeVideoId || stream.playbackHlsUrl || stream.playbackDashUrl
@@ -200,7 +204,7 @@ export default function EventWatchPage({ event, liveData, videoData }) {
       ? getStreamBadge(selectedItem)
       : getVideoBadge(selectedItem);
 
-  if (!event || event.ok === false) {
+  if (!displayEvent || displayEvent.ok === false) {
     return (
       <div style={styles.page}>
         <div style={styles.container}>
@@ -214,17 +218,24 @@ export default function EventWatchPage({ event, liveData, videoData }) {
     );
   }
 
-  const locationLabel = [event.venueName, event.city, event.state]
+  const locationLabel = [
+    displayEvent?.venueName,
+    displayEvent?.city,
+    displayEvent?.state,
+  ]
     .filter(Boolean)
     .join(" • ");
 
   return (
     <>
       <Head>
-        <title>{event.title} | MotorXLive</title>
+        <title>{displayEvent?.title} | MotorXLive</title>
         <meta
           name="description"
-          content={event.description || `Watch ${event.title} on MotorXLive.`}
+          content={
+            displayEvent?.description ||
+            `Watch ${displayEvent?.title} on MotorXLive.`
+          }
         />
       </Head>
 
@@ -234,6 +245,7 @@ export default function EventWatchPage({ event, liveData, videoData }) {
             <main style={styles.mainColumn}>
               <div style={styles.liveHeader}>
                 <span style={styles.watchBadge}>WATCH</span>
+
                 {selectedItem ? (
                   <span
                     style={{
@@ -244,15 +256,18 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                     {selectedBadge}
                   </span>
                 ) : null}
-                {event.category?.name ? (
-                  <span style={styles.categoryBadge}>{event.category.name}</span>
+
+                {displayEvent?.category?.name ? (
+                  <span style={styles.categoryBadge}>
+                    {displayEvent.category.name}
+                  </span>
                 ) : null}
               </div>
 
-              <h1 style={styles.title}>{event.title}</h1>
+              <h1 style={styles.title}>{displayEvent?.title}</h1>
 
               <div style={styles.metaRow}>
-                <span>{formatDate(event.startAt)}</span>
+                <span>{formatDate(displayEvent?.startAt)}</span>
                 {locationLabel ? <span>{locationLabel}</span> : null}
               </div>
 
@@ -346,7 +361,8 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                         <div style={styles.videoText}>
                           <div style={styles.videoTitle}>{video.title}</div>
                           <div style={styles.videoMeta}>
-                            {getVideoBadge(video)} • {video.publishedAt ? formatDate(video.publishedAt) : "Unscheduled"}
+                            {getVideoBadge(video)} •{" "}
+                            {video.publishedAt ? formatDate(video.publishedAt) : "Unscheduled"}
                           </div>
                           <div style={styles.videoMeta}>{getChannelLabel(video)}</div>
                         </div>
@@ -356,18 +372,22 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                 )}
               </section>
 
-              {event.description ? (
+              {displayEvent?.description ? (
                 <section style={styles.infoCard}>
                   <div style={styles.sectionHeading}>About This Event</div>
-                  <p style={styles.description}>{event.description}</p>
+                  <p style={styles.description}>{displayEvent.description}</p>
                 </section>
               ) : null}
             </main>
 
             <aside style={styles.sideColumn}>
-              {event.heroImageUrl ? (
+              {displayEvent?.heroImageUrl ? (
                 <div style={styles.flyerCard}>
-                  <img src={event.heroImageUrl} alt={event.title} style={styles.flyerImage} />
+                  <img
+                    src={displayEvent.heroImageUrl}
+                    alt={displayEvent?.title || "Event flyer"}
+                    style={styles.flyerImage}
+                  />
                 </div>
               ) : null}
 
@@ -376,20 +396,32 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                 <div style={styles.detailsGrid}>
                   <div>
                     <div style={styles.detailLabel}>Start</div>
-                    <div style={styles.detailValue}>{formatDate(event.startAt)}</div>
+                    <div style={styles.detailValue}>
+                      {formatDate(displayEvent?.startAt)}
+                    </div>
                   </div>
                   <div>
                     <div style={styles.detailLabel}>End</div>
-                    <div style={styles.detailValue}>{formatDate(event.endAt)}</div>
+                    <div style={styles.detailValue}>
+                      {formatDate(displayEvent?.endAt)}
+                    </div>
                   </div>
                   <div>
                     <div style={styles.detailLabel}>Venue</div>
-                    <div style={styles.detailValue}>{event.venueName || "TBD"}</div>
+                    <div style={styles.detailValue}>
+                      {displayEvent?.venueName || "TBD"}
+                    </div>
                   </div>
                   <div>
                     <div style={styles.detailLabel}>Location</div>
                     <div style={styles.detailValue}>
-                      {[event.city, event.state, event.postalCode].filter(Boolean).join(", ") || "TBD"}
+                      {[
+                        displayEvent?.city,
+                        displayEvent?.state,
+                        displayEvent?.postalCode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ") || "TBD"}
                     </div>
                   </div>
                 </div>
@@ -401,9 +433,10 @@ export default function EventWatchPage({ event, liveData, videoData }) {
                   <Link href="/" style={styles.link}>
                     Homepage
                   </Link>
-                  {event.category?.slug ? (
-                    <Link href={`/categories/${event.category.slug}`} style={styles.link}>
-                      More in {event.category.name}
+
+                  {displayEvent?.category?.slug ? (
+                    <Link href={`/categories/${displayEvent.category.slug}`} style={styles.link}>
+                      More in {displayEvent.category.name}
                     </Link>
                   ) : null}
                 </div>
