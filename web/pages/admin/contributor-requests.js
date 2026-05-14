@@ -27,45 +27,41 @@ export default function AdminContributorRequestsPage() {
   });
 
   async function loadRequests(nextStatus = status) {
-    if (!options.preserveMessage) {
-        setMessage("");
-    }
+    setMessage("");
 
     const params = new URLSearchParams();
     if (nextStatus) params.set("status", nextStatus);
 
-    const res = await adminFetch(`/api/admin/contributor-access-requests?${params.toString()}`);
-    const text = await res.text();
+    try {
+        const [requestsRes, countsRes] = await Promise.all([
+            adminFetch(`/api/admin/contributor-access-requests?${params.toString()}`),
+            adminFetch("/api/admin/contributor-access-requests/counts"),
+        ]);
 
-    const [requestsRes, countsRes] = await Promise.all([
-        adminFetch(`/api/admin/contributor-access-requests?${params.toString()}`),
-        adminFetch("/api/admin/contributor-access-requests/counts"),
-    ]);
+        const requestsText = await requestsRes.text();
+        const countsText = await countsRes.text();
 
-    const requestsText = await requestsRes.text();
-    const countsText = await countsRes.text();
+        if (!requestsRes.ok) {
+            setMessage(requestsText || "Failed to load contributor requests.");
+            setRequests([]);
+            return;
+        }
 
-    if (!requestsRes.ok) {
-        setMessage(requestsText || "Failed to load contributor requests.");
-        setRequests([]);
-        return;
+        const requestsJson = requestsText ? JSON.parse(requestsText) : [];
+        const countsJson = countsText && countsRes.ok ? JSON.parse(countsText) : {};
+
+        setRequests(Array.isArray(requestsJson) ? requestsJson : []);
+        setCounts({
+            pending: countsJson?.pending || 0,
+            approved: countsJson?.approved || 0,
+            rejected: countsJson?.rejected || 0,
+            total: countsJson?.total || 0,
+        });
+        } catch (err) {
+            setMessage(err.message || "Failed to load contributor requests.");
+            setRequests([]);
+        }
     }
-
-    const requestsJson = requestsText ? JSON.parse(requestsText) : [];
-    const countsJson = countsText ? JSON.parse(countsText) : {};
-
-    setRequests(Array.isArray(requestsJson) ? requestsJson : []);
-    setCounts(countsJson || {});
-
-    if (!res.ok) {
-      setMessage(text || "Failed to load contributor requests.");
-      setRequests([]);
-      return;
-    }
-
-    const json = text ? JSON.parse(text) : [];
-    setRequests(Array.isArray(json) ? json : []);
-  }
 
   useEffect(() => {
     loadRequests(status);
