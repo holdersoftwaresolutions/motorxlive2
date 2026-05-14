@@ -29,6 +29,7 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { AuditModule } from "./audit/audit.module";
 
 import { ContributorAccessModule } from "./contributor-access/contributor-access.module";
+import { AdminUsersController } from "./users/admin-users.controller";
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { ContributorAccessModule } from "./contributor-access/contributor-access
     AdminController,
     ContributorController,
     YouTubeController,
+    AdminUsersController,
   ],
   providers: [
     {

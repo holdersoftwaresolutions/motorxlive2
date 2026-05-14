@@ -224,23 +224,66 @@ export default function AdminContributorRequestsPage() {
 
                   <div style={styles.actions}>
                     <button
-                      type="button"
-                      style={styles.approveButton}
-                      disabled={busyId === request.id}
-                      onClick={() => reviewRequest(request.id, "approve")}
-                    >
-                      Approve
+                        type="button"
+                        style={styles.approveButton}
+                        disabled={busyId === request.id}
+                        onClick={() => reviewRequest(request.id, "approve")}
+                        >
+                        Approve
                     </button>
 
                     <button
-                      type="button"
-                      style={styles.rejectButton}
-                      disabled={busyId === request.id}
-                      onClick={() => reviewRequest(request.id, "reject")}
-                    >
-                      Reject
+                        type="button"
+                        style={styles.rejectButton}
+                        disabled={busyId === request.id}
+                        onClick={() => reviewRequest(request.id, "reject")}
+                        >
+                        Reject
                     </button>
-                  </div>
+
+                    <button
+                        type="button"
+                        style={styles.resetPasswordButton}
+                        onClick={async () => {
+                        try {
+                            const usersRes = await adminFetch("/api/admin/users");
+                            const usersJson = await usersRes.json();
+
+                            const matchedUser = Array.isArray(usersJson)
+                                ? usersJson.find((u) => u.email === request.email)
+                                : null;
+
+                            if (!matchedUser) {
+                            alert("No user found for this contributor.");
+                            return;
+                            }
+
+                            const resetRes = await adminFetch(
+                            `/api/admin/users/${matchedUser.id}/reset-password`,
+                            {
+                                method: "POST",
+                            }
+                            );
+
+                            const resetJson = await resetRes.json();
+
+                            if (!resetRes.ok || !resetJson?.temporaryPassword) {
+                            throw new Error(
+                                resetJson?.message || "Failed to reset password."
+                            );
+                            }
+
+                            alert(
+                                `Temporary password for ${matchedUser.email}:\n\n${resetJson.temporaryPassword}`
+                            );
+                            } catch (err) {
+                                alert(err.message || "Password reset failed.");
+                            }
+                            }}
+                            >
+                            Reset Password
+                        </button>
+                    </div>
                 </div>
               ) : request.adminNotes ? (
                 <div style={styles.reasonBox}>
@@ -373,6 +416,15 @@ const styles = {
     background: "#8f2d2d",
     color: "#fff",
     border: 0,
+    borderRadius: BRAND.radius.md,
+    padding: "12px 14px",
+    cursor: "pointer",
+    fontWeight: 800,
+  },
+  resetPasswordButton: {
+    background: "#1b2a40",
+    color: "#fff",
+    border: "1px solid #31598b",
     borderRadius: BRAND.radius.md,
     padding: "12px 14px",
     cursor: "pointer",
