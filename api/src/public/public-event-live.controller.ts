@@ -9,12 +9,8 @@ export class PublicEventLiveController {
   async getEventLive(@Param("slug") slug: string) {
     const event = await this.prisma.event.findUnique({
       where: { slug },
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        startAt: true,
-        endAt: true,
+      include: {
+        category: true,
       },
     });
 
@@ -22,6 +18,7 @@ export class PublicEventLiveController {
       return {
         ok: false,
         error: "Event not found",
+        event: null,
         eventId: null,
         primaryStream: null,
         streams: [],
@@ -65,11 +62,18 @@ export class PublicEventLiveController {
         title: true,
         sourceType: true,
         provider: true,
+        sourceUrl: true,
+        embedUrl: true,
         isPrimary: true,
         priority: true,
         playbackHlsUrl: true,
         playbackDashUrl: true,
         youtubeVideoId: true,
+        youtubeChannelId: true,
+        youtubeChannelName: true,
+        youtubeThumbnailUrl: true,
+        youtubeEmbeddable: true,
+        youtubeLiveStatus: true,
         lifecycle: true,
         moderationStatus: true,
         createdAt: true,
@@ -88,13 +92,42 @@ export class PublicEventLiveController {
       normalizedStreams[0] ||
       null;
 
+    const normalizedEvent = {
+      id: event.id,
+      slug: event.slug,
+      title: event.title,
+      description: event.description || null,
+      heroImageUrl: event.heroImageUrl || null,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      venueName: event.venueName || null,
+      addressLine1: event.addressLine1 || null,
+      city: event.city || null,
+      state: event.state || null,
+      country: event.country || null,
+      categoryId: event.categoryId || null,
+      category: event.category || null,
+    };
+
     return {
       ok: true,
-      eventId: event.id,
-      eventSlug: event.slug,
-      eventTitle: event.title,
-      eventStartAt: event.startAt,
-      eventEndAt: event.endAt,
+
+      event: normalizedEvent,
+
+      eventId: normalizedEvent.id,
+      eventSlug: normalizedEvent.slug,
+      eventTitle: normalizedEvent.title,
+      eventDescription: normalizedEvent.description,
+      eventHeroImageUrl: normalizedEvent.heroImageUrl,
+      eventStartAt: normalizedEvent.startAt,
+      eventEndAt: normalizedEvent.endAt,
+      eventVenueName: normalizedEvent.venueName,
+      eventAddress: normalizedEvent.addressLine1,
+      eventCity: normalizedEvent.city,
+      eventState: normalizedEvent.state,
+      eventCountry: normalizedEvent.country,
+      eventCategory: normalizedEvent.category,
+
       primaryStream,
       streams: normalizedStreams,
     };
