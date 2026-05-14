@@ -85,7 +85,7 @@ export default function AdminContributorRequestsPage() {
             "Content-Type": "application/json",
             },
             body: JSON.stringify({
-            adminNotes: notes[id] || "",
+                adminNotes: notes[id] || "",
             }),
         }
         );
@@ -94,30 +94,30 @@ export default function AdminContributorRequestsPage() {
         const json = text ? JSON.parse(text) : null;
 
         if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || json?.message || text || "Review failed.");
+            throw new Error(json?.error || json?.message || text || "Review failed.");
         }
+
+        let nextMessage = "";
 
         if (action === "approve" && json?.temporaryPassword) {
-        setMessage(
-            `Request approved. User created for ${json.user?.email}. Temporary password: ${json.temporaryPassword}`
-        );
+            nextMessage = `Request approved. User created for ${json.user?.email}. Temporary password: ${json.temporaryPassword}`;
         } else if (action === "approve" && json?.userAlreadyExists) {
-        setMessage(
-            `Request approved. User already exists for ${json.user?.email}. No new password was generated.`
-        );
+            nextMessage = `Request approved. User already exists for ${json.user?.email}. No new password was generated.`;
         } else if (action === "approve") {
-            setMessage(json?.message || "Request approved.");
+            nextMessage = json?.message || "Request approved.";
         } else {
-            setMessage("Request rejected.");
-    }
-
-    await loadRequests(status, { preserveMessage: true });
-    } catch (err) {
-        setMessage(err.message || "Review failed.");
-        } finally {
-        setBusyId("");
+            nextMessage = "Request rejected.";
         }
-    }
+
+        await loadRequests(status);
+
+        setMessage(nextMessage);
+        } catch (err) {
+            setMessage(err.message || "Review failed.");
+        } finally {
+            setBusyId("");
+        }
+    }    
 
   return (
     <AdminLayout title="Contributor Requests">
