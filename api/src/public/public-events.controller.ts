@@ -51,9 +51,20 @@ export class PublicEventsController {
     }
 
     if (from) {
-      where.startAt = {
-        gte: new Date(from),
-      };
+      const fromDate = new Date(from);
+
+      where.OR = [
+        {
+          startAt: {
+            gte: fromDate,
+          },
+        },
+        {
+          endAt: {
+            gte: fromDate,
+          },
+        },
+      ];
     }
 
     if (q?.trim()) {
