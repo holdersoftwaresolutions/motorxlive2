@@ -30,7 +30,7 @@ import { AuditModule } from "./audit/audit.module";
 
 import { ContributorAccessModule } from "./contributor-access/contributor-access.module";
 import { AdminUsersController } from "./users/admin-users.controller";
-
+import { ContributorEventsModule } from "./contributor-events/contributor-events.module";
 @Module({
   imports: [
     ThrottlerModule.forRoot([
@@ -51,6 +51,7 @@ import { AdminUsersController } from "./users/admin-users.controller";
     ScheduleModule.forRoot(),
     AuditModule,
     ContributorAccessModule,
+    ContributorEventsModule,
   ],
   controllers: [
     HealthController,

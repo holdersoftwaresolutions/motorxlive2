@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 
 const links = [
   { href: "/contributor", label: "Dashboard" },
+  { href: "/contributor/events", label: "Events" },
   { href: "/contributor/streams", label: "Streams" },
   { href: "/contributor/videos", label: "Videos" },
 ];
